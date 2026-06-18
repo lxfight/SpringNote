@@ -87,7 +87,7 @@ packages:
     source: hosted
     version: "6.0.0"
   flutter_math_fork:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: flutter_math_fork
       sha256: "6d5f2f1aa57ae539ffb0a04bb39d2da67af74601d685a161aff7ce5bda5fa407"
@@ -115,6 +115,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  gpt_markdown:
+    dependency: "direct main"
+    description:
+      name: gpt_markdown
+      sha256: c14c2a4599a67df5b6a984808cbb7631b8d15c91984ffdd7998597b93a6ff136
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "1.1.7"
   http:
     dependency: transitive
     description:
