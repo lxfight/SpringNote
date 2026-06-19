@@ -967,6 +967,19 @@ class _MemoryMessageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final messageWidth = constraints.maxWidth < 820
+            ? constraints.maxWidth
+            : 820.0;
+        return Center(
+          child: SizedBox(width: messageWidth, child: _buildMessage(context)),
+        );
+      },
+    );
+  }
+
+  Widget _buildMessage(BuildContext context) {
     if (message.role == 'user') {
       return Align(
         alignment: Alignment.centerRight,
@@ -988,23 +1001,23 @@ class _MemoryMessageView extends StatelessWidget {
       );
     }
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 820),
-        margin: const EdgeInsets.only(bottom: 36),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (message.reasoningContent.trim().isNotEmpty) ...[
-              _ReasoningBlock(
-                reasoning: message.reasoningContent,
-                collapsed: shouldCollapseMemoryReasoning(message),
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (message.content.trim().isNotEmpty)
-              GptMarkdown(
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (message.reasoningContent.trim().isNotEmpty) ...[
+            _ReasoningBlock(
+              reasoning: message.reasoningContent,
+              collapsed: shouldCollapseMemoryReasoning(message),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (message.content.trim().isNotEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: GptMarkdown(
                 message.content,
                 codeBuilder: (context, name, code, closed) =>
                     MarkdownCodeBlock(language: name, code: code),
@@ -1013,12 +1026,12 @@ class _MemoryMessageView extends StatelessWidget {
                   height: 1.8,
                 ),
               ),
-            if (attachments.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              _ToolAttachmentStrip(attachments: attachments),
-            ],
+            ),
+          if (attachments.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _ToolAttachmentStrip(attachments: attachments),
           ],
-        ),
+        ],
       ),
     );
   }
