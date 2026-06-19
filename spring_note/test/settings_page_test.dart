@@ -151,7 +151,7 @@ void main() {
       'Custom Chat Edited',
     );
     expect(find.text('FIM 模式'), findsNothing);
-    await tester.tap(find.widgetWithText(FilterChip, '补全'));
+    await tester.tap(find.text('补全'));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('confirm-edit-model-button')));
     await tester.pumpAndSettle();

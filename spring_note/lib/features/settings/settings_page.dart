@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/models/app_config.dart';
 import '../../core/models/local_data_state.dart';
@@ -2620,11 +2621,13 @@ class _ModelHeaderIconButtonState extends State<_ModelHeaderIconButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
-    final color = !enabled
+    final active = enabled && _hovered;
+    final iconColor = !enabled
         ? const Color(0xFFBDBDBD)
-        : (_hovered ? AppTheme.text : AppTheme.textSubtle);
+        : (active ? AppTheme.text : AppTheme.textSubtle);
     return Tooltip(
       message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 450),
       child: MouseRegion(
         cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         onEnter: (_) {
@@ -2640,22 +2643,30 @@ class _ModelHeaderIconButtonState extends State<_ModelHeaderIconButton> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.onPressed,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 130),
-            curve: Curves.easeOutCubic,
+          child: SizedBox(
             width: 32,
             height: 32,
-            decoration: BoxDecoration(
-              color: _hovered && enabled
-                  ? const Color(0xFFF2F2F2)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Center(
-              child: IconTheme(
-                data: IconThemeData(color: color, size: 16),
-                child: widget.icon,
-              ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 120),
+                    curve: Curves.easeOutCubic,
+                    opacity: active ? 1 : 0,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF2F2F2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+                IconTheme(
+                  data: IconThemeData(color: iconColor, size: 16),
+                  child: widget.icon,
+                ),
+              ],
             ),
           ),
         ),
@@ -3771,59 +3782,184 @@ class _EditModelDialogState extends State<_EditModelDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return _DialogFrame(
+    return _ModelEditDialogShell(
       title: '编辑模型',
-      width: 760,
+      subtitle: '调整模型展示名称、输入类型与可用能力',
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _ReadOnlyField(label: '模型 ID', value: widget.model.modelId),
-          _DialogTextField(
-            key: const ValueKey('edit-model-name-field'),
-            label: '模型名称',
-            controller: _displayNameController,
+          _ModelIdentityCard(
+            modelId: widget.model.modelId,
+            nameController: _displayNameController,
           ),
-          _OptionGroup(
-            label: '模型类型',
-            values: const {'chat': '聊天', 'completion': '补全'},
-            selected: _modelTypes,
-            onChanged: (value) => setState(() => _modelTypes = value),
-          ),
-          _OptionGroup(
-            label: '输入模式',
-            values: const {'text': '文本', 'image': '图片'},
-            selected: _inputModes,
-            onChanged: (value) => setState(() => _inputModes = value),
-          ),
-          _OptionGroup(
-            label: '能力',
-            values: const {'tools': '工具', 'reasoning': '推理'},
-            selected: _capabilities,
-            onChanged: (value) => setState(() => _capabilities = value),
+          const SizedBox(height: 14),
+          _ModelOptionsCard(
+            children: [
+              _OptionGroup(
+                label: '模型类型',
+                values: const {'chat': '聊天', 'completion': '补全'},
+                selected: _modelTypes,
+                onChanged: (value) => setState(() => _modelTypes = value),
+              ),
+              _OptionGroup(
+                label: '输入模式',
+                values: const {'text': '文本', 'image': '图片'},
+                selected: _inputModes,
+                onChanged: (value) => setState(() => _inputModes = value),
+              ),
+              _OptionGroup(
+                label: '能力',
+                values: const {'tools': '工具', 'reasoning': '推理'},
+                selected: _capabilities,
+                onChanged: (value) => setState(() => _capabilities = value),
+              ),
+            ],
           ),
           const SizedBox(height: 18),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton(
-              key: const ValueKey('confirm-edit-model-button'),
-              onPressed: () {
-                Navigator.of(context).pop(
-                  widget.model.copyWith(
-                    displayName: _displayNameController.text.trim().isEmpty
-                        ? widget.model.modelId
-                        : _displayNameController.text.trim(),
-                    modelTypes: _modelTypes,
-                    inputModes: _inputModes,
-                    capabilities: _capabilities,
-                  ),
-                );
-              },
-              child: const Text('确认'),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _ModelDialogButton(
+                label: '取消',
+                filled: false,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+              const SizedBox(width: 10),
+              _ModelDialogButton(
+                key: const ValueKey('confirm-edit-model-button'),
+                label: '确认',
+                filled: true,
+                onTap: () {
+                  Navigator.of(context).pop(
+                    widget.model.copyWith(
+                      displayName: _displayNameController.text.trim().isEmpty
+                          ? widget.model.modelId
+                          : _displayNameController.text.trim(),
+                      modelTypes: _modelTypes,
+                      inputModes: _inputModes,
+                      capabilities: _capabilities,
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ModelEditDialogShell extends StatelessWidget {
+  const _ModelEditDialogShell({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: AppTheme.text,
+                                fontWeight: FontWeight.w800,
+                                height: 1.15,
+                              ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppTheme.textSubtle,
+                                height: 1.25,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _ModelDialogIconButton(
+                    tooltip: '关闭',
+                    icon: Icons.close_rounded,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModelIdentityCard extends StatelessWidget {
+  const _ModelIdentityCard({
+    required this.modelId,
+    required this.nameController,
+  });
+
+  final String modelId;
+  final TextEditingController nameController;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _ModelReadOnlyField(label: '模型 ID', value: modelId),
+        const SizedBox(height: 10),
+        _ModelTextField(
+          key: const ValueKey('edit-model-name-field'),
+          label: '模型名称',
+          controller: nameController,
+        ),
+      ],
+    );
+  }
+}
+
+class _ModelOptionsCard extends StatelessWidget {
+  const _ModelOptionsCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final (index, child) in children.indexed) ...[
+          child,
+          if (index != children.length - 1)
+            const Divider(height: 1, color: Color(0xFFEDEDED)),
+        ],
+      ],
     );
   }
 }
@@ -3844,32 +3980,378 @@ class _OptionGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 86,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: AppTheme.text,
+                fontWeight: FontWeight.w700,
+                height: 1.2,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final entry in values.entries)
+                  _ModelOptionChip(
+                    label: entry.value,
+                    selected: selected.contains(entry.key),
+                    onTap: () {
+                      final next = [...selected];
+                      if (selected.contains(entry.key)) {
+                        next.remove(entry.key);
+                      } else {
+                        next.add(entry.key);
+                      }
+                      onChanged(next);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModelOptionChip extends StatefulWidget {
+  const _ModelOptionChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_ModelOptionChip> createState() => _ModelOptionChipState();
+}
+
+class _ModelOptionChipState extends State<_ModelOptionChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = widget.selected;
+    final background = selected
+        ? const Color(0xFFE2E2E2)
+        : (_hovered ? const Color(0xFFF1F1F1) : Colors.white);
+    final foreground = AppTheme.text;
+    final borderColor = selected
+        ? const Color(0xFFCFCFCF)
+        : const Color(0xFFD5D5D5);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOutCubic,
+          width: 116,
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 15,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOutCubic,
+                  opacity: selected ? 1 : 0,
+                  child: Icon(Icons.check_rounded, size: 15, color: foreground),
+                ),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 22),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModelReadOnlyField extends StatelessWidget {
+  const _ModelReadOnlyField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ModelFieldShell(
+      label: label,
+      child: Row(
+        children: [
+          Expanded(
+            child: SelectableText(
+              value,
+              maxLines: 1,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppTheme.text,
+                height: 1.2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _ModelCopyIconButton(value: value),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModelCopyIconButton extends StatefulWidget {
+  const _ModelCopyIconButton({required this.value});
+
+  final String value;
+
+  @override
+  State<_ModelCopyIconButton> createState() => _ModelCopyIconButtonState();
+}
+
+class _ModelCopyIconButtonState extends State<_ModelCopyIconButton> {
+  bool _copied = false;
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: widget.value));
+    if (!mounted) {
+      return;
+    }
+    setState(() => _copied = true);
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    if (mounted) {
+      setState(() => _copied = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ModelDialogIconButton(
+      tooltip: _copied ? '已复制' : '复制模型 ID',
+      icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
+      active: _copied,
+      onTap: _copy,
+    );
+  }
+}
+
+class _ModelTextField extends StatelessWidget {
+  const _ModelTextField({
+    super.key,
+    required this.label,
+    required this.controller,
+  });
+
+  final String label;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ModelFieldShell(
+      label: label,
+      child: TextField(
+        controller: controller,
+        textAlignVertical: TextAlignVertical.center,
+        decoration: const InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          filled: false,
+        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(color: AppTheme.text, height: 1.2),
+      ),
+    );
+  }
+}
+
+class _ModelFieldShell extends StatelessWidget {
+  const _ModelFieldShell({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 58,
+      padding: const EdgeInsets.fromLTRB(14, 7, 8, 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE1E1E1)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final entry in values.entries)
-                FilterChip(
-                  label: Text(entry.value),
-                  selected: selected.contains(entry.key),
-                  onSelected: (checked) {
-                    final next = [...selected];
-                    if (checked) {
-                      next.add(entry.key);
-                    } else {
-                      next.remove(entry.key);
-                    }
-                    onChanged(next);
-                  },
-                ),
-            ],
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppTheme.textSubtle,
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Expanded(
+            child: Align(alignment: Alignment.centerLeft, child: child),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ModelDialogButton extends StatefulWidget {
+  const _ModelDialogButton({
+    super.key,
+    required this.label,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  State<_ModelDialogButton> createState() => _ModelDialogButtonState();
+}
+
+class _ModelDialogButtonState extends State<_ModelDialogButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = widget.filled
+        ? (_hovered ? const Color(0xFF2A2A2A) : Colors.black)
+        : (_hovered ? const Color(0xFFF3F3F3) : Colors.white);
+    final foreground = widget.filled ? Colors.white : AppTheme.text;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOutCubic,
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(999),
+            border: widget.filled
+                ? null
+                : Border.all(color: const Color(0xFFD7D7D7)),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            widget.label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModelDialogIconButton extends StatefulWidget {
+  const _ModelDialogIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  State<_ModelDialogIconButton> createState() => _ModelDialogIconButtonState();
+}
+
+class _ModelDialogIconButtonState extends State<_ModelDialogIconButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = widget.active || _hovered;
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 130),
+            curve: Curves.easeOutCubic,
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: active ? const Color(0xFFEDEDED) : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(widget.icon),
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOutCubic,
+              builder: (context, opacity, child) {
+                return Opacity(opacity: opacity, child: child);
+              },
+              child: Icon(
+                widget.icon,
+                size: 18,
+                color: active ? AppTheme.text : AppTheme.textSubtle,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -4804,28 +5286,6 @@ class _DialogSwitchRow extends StatelessWidget {
           const Spacer(),
           Switch(value: value, onChanged: onChanged),
         ],
-      ),
-    );
-  }
-}
-
-class _ReadOnlyField extends StatelessWidget {
-  const _ReadOnlyField({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: TextEditingController(text: value),
-        readOnly: true,
-        decoration: InputDecoration(
-          labelText: label,
-          suffixIcon: const Icon(Icons.copy_rounded, size: 17),
-        ),
       ),
     );
   }
