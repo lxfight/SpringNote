@@ -54,6 +54,7 @@ class _MemoryPageState extends State<MemoryPage> {
   List<MemoryMessage> _messages = [];
   bool _loading = true;
   bool _answering = false;
+  bool _waitingForMemoryResponse = false;
   bool _thinkingEnabled = true;
   String _reasoningEffort = 'high';
 
@@ -91,6 +92,7 @@ class _MemoryPageState extends State<MemoryPage> {
     if (mounted) {
       setState(() {
         _messages = messages;
+        _waitingForMemoryResponse = false;
         _loading = false;
       });
     }
@@ -106,6 +108,7 @@ class _MemoryPageState extends State<MemoryPage> {
     setState(() {
       _messages = [];
       _answering = false;
+      _waitingForMemoryResponse = false;
       _entryController.clear();
       _chatController.clear();
     });
@@ -132,6 +135,7 @@ class _MemoryPageState extends State<MemoryPage> {
     setState(() {
       _messages = [..._messages, userMessage];
       _answering = true;
+      _waitingForMemoryResponse = false;
       _entryController.clear();
       _chatController.clear();
     });
@@ -146,6 +150,7 @@ class _MemoryPageState extends State<MemoryPage> {
       if (aiMessage != null) {
         _messages = [..._messages, aiMessage];
       }
+      _waitingForMemoryResponse = false;
       _answering = false;
     });
     await _persist();
@@ -160,6 +165,7 @@ class _MemoryPageState extends State<MemoryPage> {
     final turnSources = <MemorySource>[];
 
     for (var turn = 0; turn < maxTurns; turn++) {
+      _setWaitingForMemoryResponse(true);
       final stream = widget.aiClientService.memoryToolChatStream(
         appDataDir: widget.localDataState.dataDirectory,
         config: widget.localDataState.config,
@@ -169,6 +175,7 @@ class _MemoryPageState extends State<MemoryPage> {
       );
 
       if (stream == null) {
+        _setWaitingForMemoryResponse(false);
         return _fallbackLocalAnswer(question);
       }
 
@@ -178,6 +185,7 @@ class _MemoryPageState extends State<MemoryPage> {
       var toolCalls = <MemoryToolCallMessage>[];
       await for (final event in stream) {
         if (event.eventType == 'error') {
+          _setWaitingForMemoryResponse(false);
           return MemoryMessage(
             role: 'ai',
             content: event.errorMessage.trim().isEmpty
@@ -190,6 +198,9 @@ class _MemoryPageState extends State<MemoryPage> {
         if (event.eventType == 'delta') {
           content = event.content;
           reasoningContent = event.reasoningContent;
+          if (_hasVisibleModelOutput(content, reasoningContent)) {
+            _setWaitingForMemoryResponse(false);
+          }
           visibleIndex = _upsertStreamingMessage(
             visibleIndex,
             content: content,
@@ -201,6 +212,7 @@ class _MemoryPageState extends State<MemoryPage> {
         if (event.eventType == 'done') {
           content = event.content;
           reasoningContent = event.reasoningContent;
+          _setWaitingForMemoryResponse(false);
           toolCalls = event.toolCalls
               .map(
                 (toolCall) => MemoryToolCallMessage(
@@ -278,6 +290,20 @@ class _MemoryPageState extends State<MemoryPage> {
       createdAt: DateTime.now(),
       sources: turnSources,
     );
+  }
+
+  bool _hasVisibleModelOutput(String content, String reasoningContent) {
+    return content.trim().isNotEmpty || reasoningContent.trim().isNotEmpty;
+  }
+
+  void _setWaitingForMemoryResponse(bool value) {
+    if (!mounted || _waitingForMemoryResponse == value) {
+      return;
+    }
+    setState(() => _waitingForMemoryResponse = value);
+    if (value) {
+      _scrollToBottom();
+    }
   }
 
   int _upsertStreamingMessage(
@@ -494,28 +520,8 @@ class _MemoryPageState extends State<MemoryPage> {
                         message: message,
                         attachments: _toolAttachmentsFor(message),
                       ),
-                    if (_answering)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 14, bottom: 22),
-                        child: Row(
-                          children: [
-                            const SizedBox(
-                              width: 13,
-                              height: 13,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppTheme.textSubtle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '正在思考并调用工具...',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppTheme.textSubtle),
-                            ),
-                          ],
-                        ),
-                      ),
+                    if (_waitingForMemoryResponse)
+                      const _MemoryWaitingIndicator(),
                   ],
                 ),
               ),
@@ -991,7 +997,7 @@ class _MemoryMessageView extends StatelessWidget {
             color: const Color(0xFFF5F5F5),
             borderRadius: BorderRadius.circular(22),
           ),
-          child: Text(
+          child: SelectableText(
             message.content,
             style: Theme.of(
               context,
@@ -1004,34 +1010,71 @@ class _MemoryMessageView extends StatelessWidget {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 36),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (message.reasoningContent.trim().isNotEmpty) ...[
-            _ReasoningBlock(
-              reasoning: message.reasoningContent,
-              collapsed: shouldCollapseMemoryReasoning(message),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (message.content.trim().isNotEmpty)
-            SizedBox(
-              width: double.infinity,
-              child: GptMarkdown(
-                message.content,
-                codeBuilder: (context, name, code, closed) =>
-                    MarkdownCodeBlock(language: name, code: code),
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppTheme.textMuted,
-                  height: 1.8,
+      child: SelectionArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (message.reasoningContent.trim().isNotEmpty) ...[
+              _ReasoningBlock(
+                reasoning: message.reasoningContent,
+                collapsed: shouldCollapseMemoryReasoning(message),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (message.content.trim().isNotEmpty)
+              SizedBox(
+                width: double.infinity,
+                child: GptMarkdown(
+                  message.content,
+                  codeBuilder: (context, name, code, closed) =>
+                      MarkdownCodeBlock(language: name, code: code),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppTheme.textMuted,
+                    height: 1.8,
+                  ),
                 ),
               ),
-            ),
-          if (attachments.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            _ToolAttachmentStrip(attachments: attachments),
+            if (attachments.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _ToolAttachmentStrip(attachments: attachments),
+            ],
           ],
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MemoryWaitingIndicator extends StatelessWidget {
+  const _MemoryWaitingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 820),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 24),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 13,
+                height: 13,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppTheme.textSubtle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '正在思考并调用工具...',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSubtle),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
