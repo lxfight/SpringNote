@@ -12,18 +12,20 @@ import '../../core/theme/app_theme.dart';
 import '../../src/rust/stats.dart' as rust_stats;
 
 enum _SettingsSection {
-  preferences('偏好设置', Icons.tune_rounded),
-  providers('供应商', Icons.power_rounded),
-  models('默认模型', Icons.smart_toy_outlined),
-  hotkeys('快捷键', Icons.keyboard_rounded),
-  stats('统计', Icons.bar_chart_rounded),
-  about('关于', Icons.info_outline_rounded);
+  preferences('偏好设置', _SettingsNavIconType.sliders),
+  providers('供应商', _SettingsNavIconType.power),
+  models('默认模型', _SettingsNavIconType.bot),
+  hotkeys('快捷键', _SettingsNavIconType.keyboard),
+  stats('统计', _SettingsNavIconType.chart),
+  about('关于', _SettingsNavIconType.info);
 
   const _SettingsSection(this.label, this.icon);
 
   final String label;
-  final IconData icon;
+  final _SettingsNavIconType icon;
 }
+
+enum _SettingsNavIconType { sliders, power, bot, keyboard, chart, info }
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -179,7 +181,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   _SettingsNavItem(
                     section: section,
                     selected: section == _section,
-                    onTap: () => setState(() => _section = section),
+                    onTap: () {
+                      if (_section == section) {
+                        return;
+                      }
+                      setState(() => _section = section);
+                    },
                   ),
               ],
             ),
@@ -228,7 +235,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-class _SettingsNavItem extends StatelessWidget {
+class _SettingsNavItem extends StatefulWidget {
   const _SettingsNavItem({
     required this.section,
     required this.selected,
@@ -240,39 +247,167 @@ class _SettingsNavItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_SettingsNavItem> createState() => _SettingsNavItemState();
+}
+
+class _SettingsNavItemState extends State<_SettingsNavItem> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
+    final background = widget.selected
+        ? AppTheme.surfaceMuted
+        : _hovering
+        ? const Color(0x99F1F5F9)
+        : Colors.transparent;
+    final contentColor = widget.selected
+        ? AppTheme.text
+        : _hovering
+        ? AppTheme.text
+        : AppTheme.textMuted;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: selected ? AppTheme.surfaceMuted : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                section.icon,
-                size: 15,
-                color: selected ? AppTheme.text : AppTheme.textMuted,
-              ),
-              const SizedBox(width: 9),
-              Text(
-                section.label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: selected ? AppTheme.text : AppTheme.textMuted,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          splashFactory: NoSplash.splashFactory,
+          overlayColor: WidgetStateProperty.all(Colors.transparent),
+          onTap: widget.onTap,
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                _SettingsNavLucideIcon(
+                  type: widget.section.icon,
+                  size: 15,
+                  color: contentColor,
                 ),
-              ),
-            ],
+                const SizedBox(width: 9),
+                Text(
+                  widget.section.label,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: contentColor,
+                    fontWeight: widget.selected
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _SettingsNavLucideIcon extends StatelessWidget {
+  const _SettingsNavLucideIcon({
+    required this.type,
+    required this.size,
+    required this.color,
+  });
+
+  final _SettingsNavIconType type;
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: CustomPaint(
+        size: Size.square(size),
+        painter: _SettingsNavLucidePainter(type: type, color: color),
+      ),
+    );
+  }
+}
+
+class _SettingsNavLucidePainter extends CustomPainter {
+  const _SettingsNavLucidePainter({required this.type, required this.color});
+
+  final _SettingsNavIconType type;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sx = size.width / 24;
+    final sy = size.height / 24;
+    final strokeScale = sx < sy ? sx : sy;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2 * strokeScale
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    Offset point(double x, double y) => Offset(x * sx, y * sy);
+    Rect rect(double left, double top, double width, double height) =>
+        Rect.fromLTWH(left * sx, top * sy, width * sx, height * sy);
+    RRect roundedRect(double left, double top, double width, double height) {
+      return RRect.fromRectAndRadius(
+        rect(left, top, width, height),
+        Radius.circular(2 * strokeScale),
+      );
+    }
+
+    switch (type) {
+      case _SettingsNavIconType.sliders:
+        canvas.drawLine(point(4, 6), point(20, 6), paint);
+        canvas.drawCircle(point(8, 6), 2 * strokeScale, paint);
+        canvas.drawLine(point(4, 12), point(20, 12), paint);
+        canvas.drawCircle(point(15, 12), 2 * strokeScale, paint);
+        canvas.drawLine(point(4, 18), point(20, 18), paint);
+        canvas.drawCircle(point(11, 18), 2 * strokeScale, paint);
+        break;
+      case _SettingsNavIconType.power:
+        canvas.drawLine(point(12, 2.5), point(12, 9), paint);
+        canvas.drawArc(rect(4, 5, 16, 16), -0.82, 5.06, false, paint);
+        break;
+      case _SettingsNavIconType.bot:
+        canvas.drawRRect(roundedRect(5, 8, 14, 10), paint);
+        canvas.drawLine(point(12, 4), point(12, 8), paint);
+        canvas.drawCircle(point(12, 4), 1.5 * strokeScale, paint);
+        canvas.drawCircle(point(9, 13), 0.8 * strokeScale, paint);
+        canvas.drawCircle(point(15, 13), 0.8 * strokeScale, paint);
+        canvas.drawLine(point(9, 18), point(9, 21), paint);
+        canvas.drawLine(point(15, 18), point(15, 21), paint);
+        break;
+      case _SettingsNavIconType.keyboard:
+        canvas.drawRRect(roundedRect(3, 5, 18, 14), paint);
+        for (final y in [10.0, 14.0]) {
+          for (final x in [7.0, 11.0, 15.0]) {
+            canvas.drawCircle(point(x, y), 0.45 * strokeScale, paint);
+          }
+        }
+        canvas.drawLine(point(8, 17), point(16, 17), paint);
+        break;
+      case _SettingsNavIconType.chart:
+        canvas.drawLine(point(4, 20), point(20, 20), paint);
+        canvas.drawLine(point(7, 16), point(7, 20), paint);
+        canvas.drawLine(point(12, 10), point(12, 20), paint);
+        canvas.drawLine(point(17, 5), point(17, 20), paint);
+        break;
+      case _SettingsNavIconType.info:
+        canvas.drawCircle(point(12, 12), 9 * strokeScale, paint);
+        canvas.drawLine(point(12, 10.5), point(12, 17), paint);
+        canvas.drawCircle(point(12, 7), 0.65 * strokeScale, paint);
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SettingsNavLucidePainter oldDelegate) {
+    return oldDelegate.type != type || oldDelegate.color != color;
   }
 }
 
@@ -505,7 +640,7 @@ class _ProvidersPanel extends StatelessWidget {
   }
 }
 
-class _ProviderListItem extends StatelessWidget {
+class _ProviderListItem extends StatefulWidget {
   const _ProviderListItem({
     required this.provider,
     required this.selected,
@@ -517,30 +652,55 @@ class _ProviderListItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_ProviderListItem> createState() => _ProviderListItemState();
+}
+
+class _ProviderListItemState extends State<_ProviderListItem> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
-        height: 46,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: selected ? AppTheme.surfaceMuted : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: const Color(0xFFEFF6FF),
-              child: Text(provider.name.characters.first.toUpperCase()),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(provider.name, overflow: TextOverflow.ellipsis),
-            ),
-            _StatusPill(enabled: provider.enabled),
-          ],
+    final background = widget.selected
+        ? AppTheme.surfaceMuted
+        : _hovering
+        ? const Color(0x99F1F5F9)
+        : Colors.transparent;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: WidgetStateProperty.all(Colors.transparent),
+        onTap: widget.onTap,
+        child: Container(
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: const Color(0xFFEFF6FF),
+                child: Text(
+                  widget.provider.name.characters.first.toUpperCase(),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.provider.name,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              _StatusPill(enabled: widget.provider.enabled),
+            ],
+          ),
         ),
       ),
     );

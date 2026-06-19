@@ -651,13 +651,15 @@ class _NoteListItemState extends State<_NoteListItem> {
         : Colors.transparent;
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: WidgetStateProperty.all(Colors.transparent),
         onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+        child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: background,

@@ -602,11 +602,86 @@ class _MemoryHeader extends StatelessWidget {
           IconButton(
             tooltip: '开启新对话',
             onPressed: onNewConversation,
-            icon: const Icon(Icons.edit_square, size: 17),
+            style: IconButton.styleFrom(
+              fixedSize: const Size(34, 34),
+              minimumSize: const Size(34, 34),
+              maximumSize: const Size(34, 34),
+              backgroundColor: Colors.transparent,
+              hoverColor: const Color(0xFFF1F5F9),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            icon: const _MemoryNewConversationIcon(
+              size: 17,
+              color: AppTheme.textSubtle,
+            ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _MemoryNewConversationIcon extends StatelessWidget {
+  const _MemoryNewConversationIcon({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: CustomPaint(
+        size: Size.square(size),
+        painter: _MemoryNewConversationPainter(color: color),
+      ),
+    );
+  }
+}
+
+class _MemoryNewConversationPainter extends CustomPainter {
+  const _MemoryNewConversationPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sx = size.width / 24;
+    final sy = size.height / 24;
+    final strokeScale = sx < sy ? sx : sy;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2 * strokeScale
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final bubblePath = Path()
+      ..moveTo(7.4 * sx, 19.2 * sy)
+      ..lineTo(4 * sx, 20 * sy)
+      ..lineTo(4.8 * sx, 16.7 * sy)
+      ..cubicTo(3.65 * sx, 15.35 * sy, 3 * sx, 13.72 * sy, 3 * sx, 12 * sy)
+      ..cubicTo(3 * sx, 7.04 * sy, 7.5 * sx, 3 * sy, 13 * sx, 3 * sy)
+      ..cubicTo(18.4 * sx, 3 * sy, 22 * sx, 6.45 * sy, 22 * sx, 11 * sy)
+      ..cubicTo(22 * sx, 15.65 * sy, 18.08 * sx, 19.4 * sy, 13 * sx, 19.4 * sy)
+      ..cubicTo(10.82 * sx, 19.4 * sy, 9 * sx, 19.05 * sy, 7.4 * sx, 19.2 * sy);
+
+    for (final metric in bubblePath.computeMetrics()) {
+      var distance = 0.0;
+      final dashLength = 3.4 * strokeScale;
+      final gapLength = 2.7 * strokeScale;
+      while (distance < metric.length) {
+        final end = (distance + dashLength).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance += dashLength + gapLength;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MemoryNewConversationPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 
@@ -844,6 +919,8 @@ class _ThinkingSegment extends StatelessWidget {
     return Expanded(
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: WidgetStateProperty.all(Colors.transparent),
         onTap: onTap,
         child: Center(
           child: AnimatedDefaultTextStyle(
@@ -966,6 +1043,8 @@ class _ToolAttachmentChip extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: WidgetStateProperty.all(Colors.transparent),
         onTap: () => _showToolDialog(context, attachment),
         child: Container(
           padding: const EdgeInsets.fromLTRB(10, 7, 12, 7),
@@ -1207,6 +1286,8 @@ class _ReasoningBlockState extends State<_ReasoningBlock> {
         children: [
           InkWell(
             borderRadius: BorderRadius.circular(12),
+            splashFactory: NoSplash.splashFactory,
+            overlayColor: WidgetStateProperty.all(Colors.transparent),
             onTap: () => setState(() => _expanded = !_expanded),
             child: Row(
               children: [

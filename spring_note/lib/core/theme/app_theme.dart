@@ -27,6 +27,10 @@ class AppTheme {
         surface: surface,
       ),
       scaffoldBackgroundColor: background,
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      focusColor: Colors.transparent,
       fontFamily: 'Segoe UI Variable',
       textTheme: const TextTheme(
         headlineLarge: TextStyle(

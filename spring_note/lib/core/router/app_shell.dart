@@ -75,7 +75,14 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) {
       return;
     }
-    setState(() => _section = AppSection.home);
+    _selectSection(AppSection.home);
+  }
+
+  void _selectSection(AppSection section) {
+    if (_section == section) {
+      return;
+    }
+    setState(() => _section = section);
   }
 
   void _handleLevelProgressChanged() {
@@ -121,25 +128,20 @@ class _AppShellState extends State<AppShell> {
             children: [
               GlobalSidebar(
                 selectedSection: _section,
-                onSectionSelected: (section) =>
-                    setState(() => _section = section),
+                onSectionSelected: _selectSection,
               ),
               Expanded(
-                child: KeyedSubtree(
-                  key: ValueKey(_section),
-                  child: switch (_section) {
-                    AppSection.home => HomePage(
+                child: IndexedStack(
+                  index: _section.index,
+                  children: [
+                    HomePage(
                       localDataState: _localDataState,
                       desktopWidgetController: _desktopWidgetController,
                       levelProgressController: _levelProgressController,
                     ),
-                    AppSection.notes => NotesPage(
-                      localDataState: _localDataState,
-                    ),
-                    AppSection.memory => MemoryPage(
-                      localDataState: _localDataState,
-                    ),
-                    AppSection.settings => SettingsPage(
+                    NotesPage(localDataState: _localDataState),
+                    MemoryPage(localDataState: _localDataState),
+                    SettingsPage(
                       localDataState: _localDataState,
                       onConfigChanged: (config) {
                         setState(() {
@@ -152,7 +154,7 @@ class _AppShellState extends State<AppShell> {
                         _syncDesktopWidgetWindow();
                       },
                     ),
-                  },
+                  ],
                 ),
               ),
             ],
@@ -225,7 +227,7 @@ class GlobalSidebar extends StatelessWidget {
   }
 }
 
-class _SidebarButton extends StatelessWidget {
+class _SidebarButton extends StatefulWidget {
   const _SidebarButton({
     required this.icon,
     required this.tooltip,
@@ -239,35 +241,58 @@ class _SidebarButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
+  State<_SidebarButton> createState() => _SidebarButtonState();
+}
+
+class _SidebarButtonState extends State<_SidebarButton> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
+    final background = widget.selected
+        ? const Color(0xCCF1F5F9)
+        : _hovering
+        ? const Color(0x80F1F5F9)
+        : Colors.transparent;
+    final iconColor = widget.selected
+        ? AppTheme.text
+        : _hovering
+        ? AppTheme.textMuted
+        : const Color(0xFF94A3B8);
+
     return Tooltip(
-      message: tooltip,
+      message: widget.tooltip,
       waitDuration: const Duration(milliseconds: 450),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xCCF1F5F9) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              _SidebarLucideIcon(
-                type: icon,
-                size: 16,
-                color: selected ? AppTheme.text : const Color(0xFF94A3B8),
-              ),
-              Opacity(
-                opacity: 0,
-                child: Icon(_legacyMaterialIcon(icon), size: 20),
-              ),
-            ],
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          splashFactory: NoSplash.splashFactory,
+          overlayColor: WidgetStateProperty.all(Colors.transparent),
+          onTap: widget.onPressed,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                _SidebarLucideIcon(
+                  type: widget.icon,
+                  size: 16,
+                  color: iconColor,
+                ),
+                Opacity(
+                  opacity: 0,
+                  child: Icon(_legacyMaterialIcon(widget.icon), size: 20),
+                ),
+              ],
+            ),
           ),
         ),
       ),
