@@ -90,7 +90,7 @@ void main() {
       '完成首页输入流程\n问题：按钮状态需要校验\n明天补充更多测试',
     );
     await tester.pump();
-    await tester.tap(find.byType(FilledButton));
+    await tester.tap(find.byKey(const ValueKey('home-smart-generate-button')));
     for (var index = 0; index < 20; index++) {
       await tester.pump(const Duration(milliseconds: 100));
       if (fakeHomeOverviewService.savedOverview != null) {

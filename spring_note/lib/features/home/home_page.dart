@@ -1064,70 +1064,10 @@ class _QuickCaptureCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 18),
-                    FilledButton(
-                      onPressed: canSubmit ? onSubmit : null,
-                      style: ButtonStyle(
-                        backgroundColor: WidgetStateProperty.resolveWith<Color>(
-                          (states) {
-                            if (states.contains(WidgetState.hovered)) {
-                              return const Color(0xFF1E293B);
-                            }
-                            return AppTheme.text;
-                          },
-                        ),
-                        foregroundColor: const WidgetStatePropertyAll(
-                          Colors.white,
-                        ),
-                        overlayColor: const WidgetStatePropertyAll(
-                          Colors.transparent,
-                        ),
-                        minimumSize: const WidgetStatePropertyAll(Size(0, 32)),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        elevation: const WidgetStatePropertyAll(1),
-                        shadowColor: const WidgetStatePropertyAll(
-                          Color(0x1A000000),
-                        ),
-                        padding: const WidgetStatePropertyAll(
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        ),
-                        shape: const WidgetStatePropertyAll(StadiumBorder()),
-                        textStyle: const WidgetStatePropertyAll(
-                          TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            isSubmitting ? '整理中' : '智能生成',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              height: 1.2,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          if (isSubmitting)
-                            const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.4,
-                                color: Colors.white,
-                              ),
-                            )
-                          else
-                            const _LucideSparklesIcon(
-                              size: 12,
-                              color: Color(0xFF34D399),
-                            ),
-                        ],
-                      ),
+                    _SmartGenerateButton(
+                      canSubmit: canSubmit,
+                      isSubmitting: isSubmitting,
+                      onSubmit: onSubmit,
                     ),
                   ],
                 ),
@@ -1135,6 +1075,80 @@ class _QuickCaptureCard extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _SmartGenerateButton extends StatelessWidget {
+  const _SmartGenerateButton({
+    required this.canSubmit,
+    required this.isSubmitting,
+    required this.onSubmit,
+  });
+
+  static const keyValue = ValueKey('home-smart-generate-button');
+
+  final bool canSubmit;
+  final bool isSubmitting;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: canSubmit ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: canSubmit ? 1 : 0.5,
+        child: GestureDetector(
+          key: keyValue,
+          behavior: HitTestBehavior.opaque,
+          onTap: canSubmit ? onSubmit : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(9999),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0D000000),
+                  offset: Offset(0, 1),
+                  blurRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  isSubmitting ? '整理中' : '智能生成',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                if (isSubmitting)
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF34D399),
+                      ),
+                    ),
+                  )
+                else
+                  const _LucideSparklesIcon(size: 13, color: Color(0xFF34D399)),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
