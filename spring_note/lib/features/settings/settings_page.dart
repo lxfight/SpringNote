@@ -2386,6 +2386,7 @@ class _FontPickerDialog extends StatefulWidget {
 class _FontPickerDialogState extends State<_FontPickerDialog> {
   late final TextEditingController _controller = TextEditingController();
   String _query = '';
+  String? _hoveredFont;
 
   List<String> get _fonts {
     final normalizedQuery = _query.trim().toLowerCase();
@@ -2461,6 +2462,16 @@ class _FontPickerDialogState extends State<_FontPickerDialog> {
                         return _FontOptionTile(
                           font: font,
                           selected: font == widget.selectedFont,
+                          hovered: font == _hoveredFont,
+                          onHoverChanged: (hovered) {
+                            setState(() {
+                              if (hovered) {
+                                _hoveredFont = font;
+                              } else if (_hoveredFont == font) {
+                                _hoveredFont = null;
+                              }
+                            });
+                          },
                           onTap: () => Navigator.of(context).pop(font),
                         );
                       },
@@ -2473,60 +2484,89 @@ class _FontPickerDialogState extends State<_FontPickerDialog> {
   }
 }
 
-class _FontOptionTile extends StatefulWidget {
+class _FontOptionTile extends StatelessWidget {
   const _FontOptionTile({
     required this.font,
     required this.selected,
+    required this.hovered,
+    required this.onHoverChanged,
     required this.onTap,
   });
 
   final String font;
   final bool selected;
+  final bool hovered;
+  final ValueChanged<bool> onHoverChanged;
   final VoidCallback onTap;
 
   @override
-  State<_FontOptionTile> createState() => _FontOptionTileState();
-}
-
-class _FontOptionTileState extends State<_FontOptionTile> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final active = widget.selected || _hovered;
-    final fontFamily = widget.font == 'system' ? null : widget.font;
+    final active = selected || hovered;
+    final fontFamily = font == 'system' ? null : font;
+    final backgroundColor = selected
+        ? const Color(0xE6F1F5F9)
+        : const Color(0xFFF8FAFC);
+    final contentColor = active ? AppTheme.text : AppTheme.textMuted;
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) => onHoverChanged(true),
+      onExit: (_) => onHoverChanged(false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          margin: const EdgeInsets.only(bottom: 4),
-          decoration: BoxDecoration(
-            color: active ? const Color(0xFFF1F5F9) : Colors.transparent,
-            borderRadius: BorderRadius.circular(13),
-          ),
-          child: Row(
+        onTap: onTap,
+        child: SizedBox(
+          height: 48,
+          child: Stack(
             children: [
-              Expanded(
-                child: Text(
-                  _fontLabel(widget.font),
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: active ? AppTheme.text : AppTheme.textMuted,
-                    fontFamily: fontFamily,
-                    height: 1.2,
+              Positioned(
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 4,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOutCubic,
+                  opacity: active ? 1 : 0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: backgroundColor,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
                   ),
                 ),
               ),
-              if (widget.selected)
-                const Icon(Icons.check_rounded, size: 17, color: AppTheme.text),
+              Positioned(
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 4,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _fontLabel(font),
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: contentColor,
+                                fontFamily: fontFamily,
+                                height: 1.2,
+                              ),
+                        ),
+                      ),
+                      if (selected)
+                        const Icon(
+                          Icons.check_rounded,
+                          size: 17,
+                          color: AppTheme.text,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
