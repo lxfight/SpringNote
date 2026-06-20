@@ -14,7 +14,7 @@ class AppTheme {
 
   static ThemeData light({String appFont = 'system'}) {
     final fontFamily = appFont.trim().isEmpty || appFont == 'system'
-        ? 'Segoe UI Variable'
+        ? 'Segoe UI'
         : appFont.trim();
     final colorScheme = ColorScheme.fromSeed(
       seedColor: text,

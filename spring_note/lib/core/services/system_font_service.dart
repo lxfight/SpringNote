@@ -133,8 +133,8 @@ Add-Type -AssemblyName System.Drawing
       return const ['Noto Sans CJK SC', 'Noto Sans', 'DejaVu Sans'];
     }
     return const [
-      'Segoe UI Variable',
       'Segoe UI',
+      'Segoe UI Variable',
       'Microsoft YaHei UI',
       'Microsoft YaHei',
       'Arial',
