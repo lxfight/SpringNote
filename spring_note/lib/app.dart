@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/models/app_config.dart';
 import 'core/models/local_data_state.dart';
@@ -48,6 +49,15 @@ class _SpringNoteAppState extends State<SpringNoteApp> {
     return MaterialApp(
       title: 'SpringNote',
       debugShowCheckedModeBanner: false,
+      locale: const Locale.fromSubtags(languageCode: 'zh', countryCode: 'CN'),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale.fromSubtags(languageCode: 'zh', countryCode: 'CN'),
+      ],
       theme: AppTheme.light(appFont: _config.appFont),
       builder: (context, child) {
         final mediaQuery = MediaQuery.of(context);
