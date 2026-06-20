@@ -1021,11 +1021,23 @@ class _NoteListItemState extends State<_NoteListItem> {
         ? const Color(0xFFE2E2E2)
         : const Color(0xFFF5F5F5);
     final active = widget.selected || _hovered;
+    final titleColor = active ? AppTheme.text : const Color(0xFF6E6E6E);
+    final secondaryColor = active
+        ? const Color(0xFF737373)
+        : const Color(0xFF8A8A8A);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) {
+        if (!_hovered) {
+          setState(() => _hovered = true);
+        }
+      },
+      onExit: (_) {
+        if (_hovered) {
+          setState(() => _hovered = false);
+        }
+      },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
@@ -1033,64 +1045,88 @@ class _NoteListItemState extends State<_NoteListItem> {
           children: [
             Positioned.fill(
               child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 120),
+                duration: const Duration(milliseconds: 240),
                 curve: Curves.easeOutCubic,
                 opacity: active ? 1 : 0,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: backgroundColor,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                child: TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(end: backgroundColor),
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, color, _) {
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: color ?? backgroundColor,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.note.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                fontWeight: widget.selected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
+            TweenAnimationBuilder<Color?>(
+              tween: ColorTween(end: titleColor),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              builder: (context, animatedTitleColor, _) {
+                return TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(end: secondaryColor),
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, animatedSecondaryColor, _) {
+                    final effectiveTitleColor =
+                        animatedTitleColor ?? titleColor;
+                    final effectiveSecondaryColor =
+                        animatedSecondaryColor ?? secondaryColor;
+                    return Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  widget.note.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.labelLarge
+                                      ?.copyWith(
+                                        color: effectiveTitleColor,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                ),
                               ),
-                        ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _formatModified(widget.note.modifiedAt),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: effectiveSecondaryColor,
+                                      fontSize: 11,
+                                      fontFamily: 'Consolas',
+                                    ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            widget.note.preview.isEmpty
+                                ? widget.note.name
+                                : widget.note.preview,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: effectiveSecondaryColor,
+                                  fontSize: 12,
+                                ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _formatModified(widget.note.modifiedAt),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.textSubtle,
-                          fontSize: 11,
-                          fontFamily: 'Consolas',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    widget.note.preview.isEmpty
-                        ? widget.note.name
-                        : widget.note.preview,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: widget.selected
-                          ? AppTheme.textMuted
-                          : AppTheme.textSubtle,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+                    );
+                  },
+                );
+              },
             ),
           ],
         ),
