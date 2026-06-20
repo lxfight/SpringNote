@@ -54,7 +54,6 @@ class _HomePageState extends State<HomePage> {
   bool _isSubmitting = false;
   String? _lastSavedPath;
   String? _aiNotice;
-  rust_stats.StatsSnapshot _todayStats = StatsService.emptySnapshot;
   rust_stats.StatsSnapshot _activityStats = StatsService.emptySnapshot;
 
   DesktopWidgetController get _desktopWidgetController =>
@@ -67,8 +66,6 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _ensureDesktopWidgetController();
     _ensureLevelProgressController();
-    _desktopWidgetController.addListener(_handleDesktopWidgetChanged);
-    _levelProgressController.addListener(_handleLevelProgressChanged);
     _loadTodayOverview();
     _loadHomeStats();
   }
@@ -77,18 +74,10 @@ class _HomePageState extends State<HomePage> {
   void didUpdateWidget(covariant HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.desktopWidgetController != oldWidget.desktopWidgetController) {
-      final oldController =
-          oldWidget.desktopWidgetController ?? _ownedDesktopWidgetController;
-      oldController?.removeListener(_handleDesktopWidgetChanged);
       _ensureDesktopWidgetController();
-      _desktopWidgetController.addListener(_handleDesktopWidgetChanged);
     }
     if (widget.levelProgressController != oldWidget.levelProgressController) {
-      final oldController =
-          oldWidget.levelProgressController ?? _ownedLevelProgressController;
-      oldController?.removeListener(_handleLevelProgressChanged);
       _ensureLevelProgressController();
-      _levelProgressController.addListener(_handleLevelProgressChanged);
     }
     if (widget.localDataState.dataDirectory !=
         oldWidget.localDataState.dataDirectory) {
@@ -105,8 +94,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    _desktopWidgetController.removeListener(_handleDesktopWidgetChanged);
-    _levelProgressController.removeListener(_handleLevelProgressChanged);
     _ownedDesktopWidgetController?.dispose();
     _ownedLevelProgressController?.dispose();
     _controller.dispose();
@@ -134,18 +121,6 @@ class _HomePageState extends State<HomePage> {
       ..attach(widget.localDataState);
   }
 
-  void _handleDesktopWidgetChanged() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _handleLevelProgressChanged() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   Future<void> _loadTodayOverview() async {
     try {
       final overview = await widget.homeOverviewService.readOverview(
@@ -164,23 +139,13 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadHomeStats() async {
     final today = DateTime.now();
     final activityStart = today.subtract(const Duration(days: 139));
-    final results = await Future.wait([
-      widget.statsService.readSnapshot(
-        localDataState: widget.localDataState,
-        start: today,
-        end: today,
-      ),
-      widget.statsService.readSnapshot(
-        localDataState: widget.localDataState,
-        start: activityStart,
-        end: today,
-      ),
-    ]);
+    final activityStats = await widget.statsService.readSnapshot(
+      localDataState: widget.localDataState,
+      start: activityStart,
+      end: today,
+    );
     if (mounted) {
-      setState(() {
-        _todayStats = results[0];
-        _activityStats = results[1];
-      });
+      setState(() => _activityStats = activityStats);
     }
   }
 
@@ -311,11 +276,9 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 32),
               _TodayHeroCard(
-                todayStats: _todayStats,
                 activityStats: _activityStats,
-                desktopWidgetState: _desktopWidgetController.state,
-                coinRatePerSecond: _desktopWidgetController.coinRatePerSecond,
-                levelProgressState: _levelProgressController.state,
+                desktopWidgetController: _desktopWidgetController,
+                levelProgressController: _levelProgressController,
               ),
               const SizedBox(height: 32),
               _QuickCaptureCard(
@@ -344,18 +307,14 @@ class _HomePageState extends State<HomePage> {
 
 class _TodayHeroCard extends StatelessWidget {
   const _TodayHeroCard({
-    required this.todayStats,
     required this.activityStats,
-    required this.desktopWidgetState,
-    required this.coinRatePerSecond,
-    required this.levelProgressState,
+    required this.desktopWidgetController,
+    required this.levelProgressController,
   });
 
-  final rust_stats.StatsSnapshot todayStats;
   final rust_stats.StatsSnapshot activityStats;
-  final DesktopWidgetState desktopWidgetState;
-  final double coinRatePerSecond;
-  final LevelProgressState levelProgressState;
+  final DesktopWidgetController desktopWidgetController;
+  final LevelProgressController levelProgressController;
 
   @override
   Widget build(BuildContext context) {
@@ -370,10 +329,9 @@ class _TodayHeroCard extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _IncomeSummary(
-                  desktopWidgetState: desktopWidgetState,
-                  coinRatePerSecond: coinRatePerSecond,
-                  levelProgressState: levelProgressState,
+                _LiveIncomeSummary(
+                  desktopWidgetController: desktopWidgetController,
+                  levelProgressController: levelProgressController,
                   totalCoins: activityStats.summary.coins,
                 ),
                 const SizedBox(height: 28),
@@ -386,10 +344,9 @@ class _TodayHeroCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: _IncomeSummary(
-                  desktopWidgetState: desktopWidgetState,
-                  coinRatePerSecond: coinRatePerSecond,
-                  levelProgressState: levelProgressState,
+                child: _LiveIncomeSummary(
+                  desktopWidgetController: desktopWidgetController,
+                  levelProgressController: levelProgressController,
                   totalCoins: activityStats.summary.coins,
                 ),
               ),
@@ -399,6 +356,38 @@ class _TodayHeroCard extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _LiveIncomeSummary extends StatelessWidget {
+  const _LiveIncomeSummary({
+    required this.desktopWidgetController,
+    required this.levelProgressController,
+    required this.totalCoins,
+  });
+
+  final DesktopWidgetController desktopWidgetController;
+  final LevelProgressController levelProgressController;
+  final double totalCoins;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: desktopWidgetController,
+      builder: (context, _) {
+        return AnimatedBuilder(
+          animation: levelProgressController,
+          builder: (context, _) {
+            return _IncomeSummary(
+              desktopWidgetState: desktopWidgetController.state,
+              coinRatePerSecond: desktopWidgetController.coinRatePerSecond,
+              levelProgressState: levelProgressController.state,
+              totalCoins: totalCoins,
+            );
+          },
+        );
+      },
     );
   }
 }
