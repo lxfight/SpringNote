@@ -1145,7 +1145,7 @@ class _NoteListItemState extends State<_NoteListItem> {
   }
 }
 
-class _EditorPane extends StatelessWidget {
+class _EditorPane extends StatefulWidget {
   const _EditorPane({
     required this.controller,
     required this.focusNode,
@@ -1161,6 +1161,19 @@ class _EditorPane extends StatelessWidget {
   final bool predicting;
 
   @override
+  State<_EditorPane> createState() => _EditorPaneState();
+}
+
+class _EditorPaneState extends State<_EditorPane> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     const editorStyle = TextStyle(
       color: Color(0xFF3A3A3A),
@@ -1169,7 +1182,7 @@ class _EditorPane extends StatelessWidget {
       height: 1.75,
     );
     return _PaneFrame(
-      headerPadding: const EdgeInsets.symmetric(horizontal: 32),
+      headerPadding: const EdgeInsets.only(left: 32, right: 16),
       header: Row(
         children: [
           Expanded(
@@ -1198,7 +1211,7 @@ class _EditorPane extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          _EditorStatusPill(statusText: statusText),
+          _EditorStatusPill(statusText: widget.statusText),
         ],
       ),
       child: LayoutBuilder(
@@ -1210,35 +1223,45 @@ class _EditorPane extends StatelessWidget {
           return Stack(
             children: [
               Positioned.fill(
-                child: TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  enabled: enabled,
-                  expands: true,
-                  maxLines: null,
-                  minLines: null,
-                  keyboardType: TextInputType.multiline,
-                  decoration: InputDecoration(
-                    hintText: '# 开始编辑 Markdown...',
-                    hintStyle: const TextStyle(color: Color(0xFFCFCFCF)),
-                    filled: true,
-                    fillColor: Colors.white,
-                    hoverColor: Colors.white,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    disabledBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.fromLTRB(
-                      sideInset,
-                      32,
-                      sideInset,
-                      48,
+                child: Scrollbar(
+                  controller: _scrollController,
+                  child: ScrollConfiguration(
+                    behavior: const _EditorTextFieldScrollBehavior(),
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: widget.focusNode,
+                      scrollController: _scrollController,
+                      enabled: widget.enabled,
+                      expands: true,
+                      maxLines: null,
+                      minLines: null,
+                      keyboardType: TextInputType.multiline,
+                      decoration: InputDecoration(
+                        hintText: '# 开始编辑 Markdown...',
+                        hintStyle: const TextStyle(color: Color(0xFFCFCFCF)),
+                        filled: true,
+                        fillColor: Colors.white,
+                        hoverColor: Colors.white,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.fromLTRB(
+                          sideInset,
+                          32,
+                          sideInset / 2,
+                          48,
+                        ),
+                      ),
+                      style: editorStyle,
+                      cursorColor: AppTheme.text,
+                      selectionControls: desktopTextSelectionHandleControls,
+                      enableInteractiveSelection: true,
                     ),
                   ),
-                  style: editorStyle,
                 ),
               ),
-              if (predicting)
+              if (widget.predicting)
                 const Positioned(
                   right: 24,
                   bottom: 22,
@@ -1249,6 +1272,28 @@ class _EditorPane extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+class _EditorTextFieldScrollBehavior extends ScrollBehavior {
+  const _EditorTextFieldScrollBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
+  }
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
   }
 }
 
