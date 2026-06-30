@@ -184,9 +184,14 @@ final class TrayController: NSObject {
     window?.orderOut(nil)
   }
 
-  func exitApplication() {
+  func prepareForApplicationExit() {
     exiting = true
+    closeToTray = false
     hideStatusItem()
+  }
+
+  func exitApplication() {
+    prepareForApplicationExit()
     NSApp.terminate(nil)
   }
 
@@ -205,8 +210,7 @@ final class TrayController: NSObject {
       dispose()
       result(nil)
     case "prepareForApplicationExit":
-      exiting = true
-      closeToTray = false
+      prepareForApplicationExit()
       result(nil)
     default:
       result(FlutterMethodNotImplemented)

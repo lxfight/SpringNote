@@ -18,6 +18,11 @@ class AppDelegate: FlutterAppDelegate {
     return true
   }
 
+  override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    trayController.prepareForApplicationExit()
+    return .terminateNow
+  }
+
   override func applicationDidBecomeActive(_ notification: Notification) {
     trayController.showMainWindow()
   }
