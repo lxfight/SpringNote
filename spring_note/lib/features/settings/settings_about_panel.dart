@@ -92,13 +92,34 @@ class _AboutPanel extends StatelessWidget {
 
   Future<void> _checkForUpdates(BuildContext context) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(const SnackBar(content: Text('正在检查更新...')));
     final result = await updateCheckService.check(
       mode: UpdateCheckMode.userInitiated,
     );
-    if (!context.mounted || result.status != UpdateCheckStatus.failed) {
+    if (!context.mounted) {
       return;
     }
-    messenger?.showSnackBar(const SnackBar(content: Text('暂时无法启动自动更新检查')));
+    messenger?.hideCurrentSnackBar();
+    switch (result.status) {
+      case UpdateCheckStatus.updateAvailable:
+        final latest = result.latest;
+        if (latest == null) {
+          messenger?.showSnackBar(const SnackBar(content: Text('暂时无法读取更新内容')));
+          return;
+        }
+        await showAppUpdateDialog(
+          context: context,
+          updateCheckService: updateCheckService,
+          currentVersion: result.currentVersion,
+          latest: latest,
+        );
+      case UpdateCheckStatus.idle:
+        messenger?.showSnackBar(const SnackBar(content: Text('当前已是最新版本')));
+      case UpdateCheckStatus.failed:
+        messenger?.showSnackBar(
+          const SnackBar(content: Text('暂时无法检查更新，请稍后重试')),
+        );
+    }
   }
 }
 

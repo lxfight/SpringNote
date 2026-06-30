@@ -568,6 +568,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       desktopWidgetController: _desktopWidgetController,
                       levelProgressController: _levelProgressController,
                       updateCheckResult: _updateCheckResult,
+                      updateCheckService: widget.updateCheckService,
                       startupCloudSyncMessage: _startupCloudSyncMessage,
                       onDailyNoteSaved: (path) =>
                           _notifyNoteSaved(NoteKind.daily, path),

@@ -20,6 +20,7 @@ import '../../core/services/platform_feature_support.dart';
 import '../../core/services/system_font_service.dart';
 import '../../core/services/update_check_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/update_dialog.dart';
 import 'settings_stats_panel.dart';
 
 part 'settings_preferences_panel.dart';
