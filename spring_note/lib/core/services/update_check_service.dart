@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:auto_updater/auto_updater.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+
+import 'tray_service.dart';
 
 class AppUpdateInfo {
   const AppUpdateInfo({
@@ -29,6 +32,8 @@ class AppUpdateInfo {
 enum UpdateCheckStatus { idle, updateAvailable, failed }
 
 enum UpdateCheckFailureKind { none, offline, temporary, permanent }
+
+enum UpdateCheckMode { background, userInitiated }
 
 class UpdateCheckResult {
   const UpdateCheckResult._({
@@ -79,14 +84,43 @@ class UpdateCheckResult {
   final AppUpdateInfo? latest;
 }
 
-class UpdateCheckService {
-  const UpdateCheckService();
+class UpdateCheckService with UpdaterListener {
+  UpdateCheckService({this.trayService = const TrayService()});
 
   static const _timeout = Duration(seconds: 10);
-  static const _changelogUrl =
-      'https://gitee.com/radiant303/SpringNote/raw/main/update/LATESTCHANGELOG.md';
+  static const _defaultUpdateBaseUrl =
+      'https://gitee.com/radiant303/SpringNote/raw/main/update';
+  static const _configuredUpdateBaseUrl = String.fromEnvironment(
+    'SPRINGNOTE_UPDATE_BASE_URL',
+  );
+  static const _scheduledCheckIntervalSeconds = 6 * 60 * 60;
 
-  Future<UpdateCheckResult> check() async {
+  final TrayService trayService;
+  bool _autoUpdaterInitialized = false;
+
+  Future<UpdateCheckResult> check({
+    UpdateCheckMode mode = UpdateCheckMode.background,
+  }) async {
+    final currentVersion = await loadCurrentVersion();
+    if (!_supportsNativeUpdater) {
+      return UpdateCheckResult.failed(currentVersion: currentVersion);
+    }
+
+    try {
+      await _initializeAutoUpdater();
+      await autoUpdater.checkForUpdates(
+        inBackground: mode == UpdateCheckMode.background,
+      );
+      return UpdateCheckResult.idle;
+    } catch (_) {
+      return UpdateCheckResult.failedWithKind(
+        currentVersion: currentVersion,
+        failureKind: UpdateCheckFailureKind.temporary,
+      );
+    }
+  }
+
+  Future<UpdateCheckResult> previewLatest() async {
     final currentVersion = await loadCurrentVersion();
     final endpoint = _platformEndpoint();
     if (endpoint == null) {
@@ -156,6 +190,18 @@ class UpdateCheckService {
     }
   }
 
+  bool get _supportsNativeUpdater => Platform.isWindows || Platform.isMacOS;
+
+  Future<void> _initializeAutoUpdater() async {
+    if (_autoUpdaterInitialized) {
+      return;
+    }
+    autoUpdater.addListener(this);
+    await autoUpdater.setFeedURL(_updateUrl('appcast.xml'));
+    await autoUpdater.setScheduledCheckInterval(_scheduledCheckIntervalSeconds);
+    _autoUpdaterInitialized = true;
+  }
+
   Future<String> loadCurrentVersion() async {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
@@ -169,7 +215,7 @@ class UpdateCheckService {
 
   Future<String> _readChangelog() async {
     try {
-      final changelog = await _readUrl(_changelogUrl);
+      final changelog = await _readUrl(_updateUrl('LATESTCHANGELOG.md'));
       return changelog.trim().isEmpty ? '暂无更新内容。' : changelog;
     } catch (_) {
       return '更新内容加载失败。';
@@ -191,18 +237,43 @@ class UpdateCheckService {
   }
 
   String? _platformEndpoint() {
-    const base = 'https://gitee.com/radiant303/SpringNote/raw/main/update';
     if (Platform.isWindows) {
-      return '$base/windows.json';
+      return _updateUrl('windows.json');
     }
     if (Platform.isLinux) {
-      return '$base/linux.json';
+      return _updateUrl('linux.json');
     }
     if (Platform.isMacOS) {
-      return '$base/mac.json';
+      return _updateUrl('mac.json');
     }
     return null;
   }
+
+  String _updateUrl(String fileName) {
+    final configured = _configuredUpdateBaseUrl.trim();
+    final base = configured.isEmpty ? _defaultUpdateBaseUrl : configured;
+    return '${base.replaceFirst(RegExp(r'/+$'), '')}/$fileName';
+  }
+
+  @override
+  void onUpdaterBeforeQuitForUpdate(AppcastItem? appcastItem) {
+    unawaited(trayService.prepareForApplicationExit());
+  }
+
+  @override
+  void onUpdaterCheckingForUpdate(Appcast? appcast) {}
+
+  @override
+  void onUpdaterError(UpdaterError? error) {}
+
+  @override
+  void onUpdaterUpdateAvailable(AppcastItem? appcastItem) {}
+
+  @override
+  void onUpdaterUpdateDownloaded(AppcastItem? appcastItem) {}
+
+  @override
+  void onUpdaterUpdateNotAvailable(UpdaterError? error) {}
 
   int _compareVersions(String left, String right) {
     final leftParts = _versionParts(left);

@@ -204,6 +204,10 @@ final class TrayController: NSObject {
     case "dispose":
       dispose()
       result(nil)
+    case "prepareForApplicationExit":
+      exiting = true
+      closeToTray = false
+      result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }

@@ -87,6 +87,13 @@ void TrayManager::RegisterChannelHandler() {
           return;
         }
 
+        if (call.method_name() == "prepareForApplicationExit") {
+          exiting_ = true;
+          close_to_tray_ = false;
+          result->Success();
+          return;
+        }
+
         result->NotImplemented();
       });
 }

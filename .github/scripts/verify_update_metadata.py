@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 
 def read_json(path: Path) -> dict[str, object]:
@@ -29,6 +30,53 @@ def verify_platform(path: Path, *, version: str, expected_url: str) -> None:
         raise SystemExit(f"{path} change_time is empty")
 
 
+def verify_appcast(
+    path: Path,
+    *,
+    version: str,
+    expected_macos_url: str,
+    expected_windows_url: str,
+) -> None:
+    namespaces = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
+    root = ET.parse(path).getroot()
+    items = root.findall("./channel/item")
+    if len(items) < 2:
+        raise SystemExit(f"{path} must contain macOS and Windows update items")
+
+    seen = set()
+    sparkle_ns = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
+    for item in items:
+        enclosure = item.find("enclosure")
+        if enclosure is None:
+            raise SystemExit(f"{path} item is missing enclosure")
+        os_name = enclosure.attrib.get(f"{sparkle_ns}os", "")
+        url = enclosure.attrib.get("url", "")
+        length = enclosure.attrib.get("length", "")
+        if not length.isdigit() or int(length) <= 0:
+            raise SystemExit(f"{path} {os_name or 'unknown'} length must be positive")
+        if os_name == "macos":
+            seen.add("macos")
+            if url != expected_macos_url:
+                raise SystemExit(f"{path} macOS url {url!r} does not match {expected_macos_url!r}")
+            if not enclosure.attrib.get(f"{sparkle_ns}edSignature", "").strip():
+                raise SystemExit(f"{path} macOS edSignature is empty")
+            short_version = item.findtext("sparkle:shortVersionString", namespaces=namespaces)
+            if short_version != version:
+                raise SystemExit(f"{path} macOS shortVersionString does not match {version!r}")
+        elif os_name == "windows":
+            seen.add("windows")
+            if url != expected_windows_url:
+                raise SystemExit(f"{path} Windows url {url!r} does not match {expected_windows_url!r}")
+            if enclosure.attrib.get(f"{sparkle_ns}version", "") != version:
+                raise SystemExit(f"{path} Windows sparkle:version does not match {version!r}")
+            if not enclosure.attrib.get(f"{sparkle_ns}dsaSignature", "").strip():
+                raise SystemExit(f"{path} Windows dsaSignature is empty")
+
+    missing = {"macos", "windows"} - seen
+    if missing:
+        raise SystemExit(f"{path} is missing update items for {', '.join(sorted(missing))}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", required=True)
@@ -39,15 +87,17 @@ def main() -> None:
     args = parser.parse_args()
 
     release_base = f"https://github.com/{args.repo}/releases/download/{args.version}"
+    expected_macos_url = f"{release_base}/{args.macos_asset}"
+    expected_windows_url = f"{release_base}/{args.windows_asset}"
     verify_platform(
         args.metadata_dir / "mac.json",
         version=args.version,
-        expected_url=f"{release_base}/{args.macos_asset}",
+        expected_url=expected_macos_url,
     )
     verify_platform(
         args.metadata_dir / "windows.json",
         version=args.version,
-        expected_url=f"{release_base}/{args.windows_asset}",
+        expected_url=expected_windows_url,
     )
 
     changelog = args.metadata_dir.joinpath("LATESTCHANGELOG.md").read_text(
@@ -55,6 +105,12 @@ def main() -> None:
     )
     if not changelog.strip():
         raise SystemExit("LATESTCHANGELOG.md is empty")
+    verify_appcast(
+        args.metadata_dir / "appcast.xml",
+        version=args.version,
+        expected_macos_url=expected_macos_url,
+        expected_windows_url=expected_windows_url,
+    )
 
 
 if __name__ == "__main__":
