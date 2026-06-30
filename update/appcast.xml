@@ -5,18 +5,18 @@
     <description>SpringNote desktop app updates</description>
     <language>zh-CN</language>
     <item>
-      <title>SpringNote v1.0.5</title>
-      <sparkle:version>1.0.5</sparkle:version>
-      <sparkle:shortVersionString>1.0.5</sparkle:shortVersionString>
-      <sparkle:releaseNotesLink>https://github.com/lxfight/SpringNote/releases/download/1.0.5/LATESTCHANGELOG.md</sparkle:releaseNotesLink>
-      <pubDate>Tue, 30 Jun 2026 17:26:55 +0800</pubDate>
-      <enclosure url="https://github.com/lxfight/SpringNote/releases/download/1.0.5/SpringNote-1.0.5-macos-arm64.dmg" sparkle:edSignature="j9iQBg+OsZz7vawM5WWlCAuuMudyg9Pbp2AU6NgkyQpneVhsZKACCo0UJR0/A3Q4bIjs+Up10aI+O3gJ+8CdCg==" sparkle:os="macos" length="37365220" type="application/octet-stream" />
+      <title>SpringNote v1.0.6</title>
+      <sparkle:version>1.0.6</sparkle:version>
+      <sparkle:shortVersionString>1.0.6</sparkle:shortVersionString>
+      <sparkle:releaseNotesLink>https://github.com/lxfight/SpringNote/releases/download/1.0.6/LATESTCHANGELOG.md</sparkle:releaseNotesLink>
+      <pubDate>Tue, 30 Jun 2026 18:00:23 +0800</pubDate>
+      <enclosure url="https://github.com/lxfight/SpringNote/releases/download/1.0.6/SpringNote-1.0.6-macos-arm64.dmg" sparkle:edSignature="org4t04QqnW2T5G6b5unNHA94jWoCMd0Ajaft99COKTeKdUQrdwzEAL9AafUfJQlV6QK8yu/tAoZ/kbPeGY7Dw==" sparkle:os="macos" length="37366029" type="application/octet-stream" />
     </item>
     <item>
-      <title>SpringNote v1.0.5</title>
-      <sparkle:releaseNotesLink>https://github.com/lxfight/SpringNote/releases/download/1.0.5/LATESTCHANGELOG.md</sparkle:releaseNotesLink>
-      <pubDate>Tue, 30 Jun 2026 17:26:55 +0800</pubDate>
-      <enclosure url="https://github.com/lxfight/SpringNote/releases/download/1.0.5/SpringNote-1.0.5-windows-x64-setup.exe" sparkle:dsaSignature="MD0CHQDCMBo5F6B/RBmi8rNE1EIv0uV7WTb70+P8Dq0UAhwMSzx+EPlDfIANb8D7LtBFnsyKAsYuOh/FRwLS" sparkle:version="1.0.5" sparkle:os="windows" length="15696329" type="application/octet-stream" />
+      <title>SpringNote v1.0.6</title>
+      <sparkle:releaseNotesLink>https://github.com/lxfight/SpringNote/releases/download/1.0.6/LATESTCHANGELOG.md</sparkle:releaseNotesLink>
+      <pubDate>Tue, 30 Jun 2026 18:00:23 +0800</pubDate>
+      <enclosure url="https://github.com/lxfight/SpringNote/releases/download/1.0.6/SpringNote-1.0.6-windows-x64-setup.exe" sparkle:dsaSignature="MDwCHE46131RRh/eyvFVNpsP5yzxg54+IkS0ZB+H4toCHDTRk3SsVxWorbWmXxw9u6CjbCNwJiFk6N5Zi14=" sparkle:version="1.0.6" sparkle:os="windows" length="15696216" type="application/octet-stream" />
     </item>
   </channel>
 </rss>
