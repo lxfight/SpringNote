@@ -305,7 +305,10 @@ jobs:
             exit 1
           fi
           asset_path="build/macos/Build/Products/Release/${MACOS_ASSET}"
-          signature_output="$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | dart run auto_updater:sign_update --ed-key-file - "$asset_path")"
+          private_key_path="$(mktemp)"
+          trap 'rm -f "$private_key_path"' EXIT
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$private_key_path"
+          signature_output="$(macos/Pods/Sparkle/bin/sign_update --ed-key-file "$private_key_path" "$asset_path")"
           ed_signature="$(printf '%s\n' "$signature_output" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')"
           length="$(stat -f '%z' "$asset_path")"
           if [ -z "$ed_signature" ] || [ -z "$length" ]; then
