@@ -419,15 +419,7 @@ jobs:
             git fetch origin "${{ github.event.repository.default_branch }}:refs/remotes/origin/${{ github.event.repository.default_branch }}" --depth=1
             git switch -C release-metadata "origin/${{ github.event.repository.default_branch }}"
             current_update_version="$(python3 -c 'import json, pathlib; path = pathlib.Path("update/windows.json"); print(json.loads(path.read_text(encoding="utf-8")).get("version", "0.0.0") if path.exists() else "0.0.0")')"
-            if CURRENT_UPDATE_VERSION="$current_update_version" RELEASE_VERSION="${{ needs.prepare-release.outputs.version }}" python3 - <<'PY'
-import os
-import sys
-
-def parts(version):
-    return tuple(int(part) for part in version.split("."))
-
-sys.exit(0 if parts(os.environ["CURRENT_UPDATE_VERSION"]) > parts(os.environ["RELEASE_VERSION"]) else 1)
-PY
+            if CURRENT_UPDATE_VERSION="$current_update_version" RELEASE_VERSION="${{ needs.prepare-release.outputs.version }}" python3 -c 'import os, sys; parts = lambda version: tuple(int(part) for part in version.split(".")); sys.exit(0 if parts(os.environ["CURRENT_UPDATE_VERSION"]) > parts(os.environ["RELEASE_VERSION"]) else 1)'
             then
               echo "Update metadata is already newer (${current_update_version}); skipping metadata write for ${{ needs.prepare-release.outputs.version }}."
               exit 0
