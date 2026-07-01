@@ -319,38 +319,37 @@ class UpdateCheckService {
       const UpdateInstallProgress(stage: UpdateInstallStage.launching),
     );
     await trayService.prepareForApplicationExit();
-    await _launchWindowsInstallerScript(tempDir, installer);
+    await _launchWindowsUpdater(tempDir, installer);
     await trayService.quitForUpdate();
   }
 
-  Future<void> _launchWindowsInstallerScript(
-    Directory tempDir,
-    File installer,
-  ) async {
-    final script = File(
-      _joinPath(tempDir.path, 'install_springnote_update.ps1'),
+  Future<void> _launchWindowsUpdater(Directory tempDir, File installer) async {
+    final app = File(Platform.resolvedExecutable);
+    final updater = File(
+      _joinPath(app.parent.path, 'SpringNoteUpdater.exe'),
     );
+    if (!await updater.exists()) {
+      throw const UpdateInstallException('更新助手缺失，请下载最新安装包手动更新。');
+    }
+    final updaterCopy = File(_joinPath(tempDir.path, 'SpringNoteUpdater.exe'));
+    await updater.copy(updaterCopy.path);
+
     final log = File(_joinPath(tempDir.path, 'springnote_update_inno.log'));
     final helperLog = File(
       _joinPath(tempDir.path, 'springnote_update_helper.log'),
     );
-    await script.writeAsString(
-      _windowsInstallerScript(
-        installerPath: installer.path,
-        appPath: Platform.resolvedExecutable,
-        logPath: log.path,
-        helperLogPath: helperLog.path,
-        currentPid: pid,
-      ),
-      encoding: utf8,
-    );
 
-    await Process.start('powershell.exe', [
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-File',
-      script.path,
+    await Process.start(updaterCopy.path, [
+      '--installer',
+      installer.path,
+      '--app',
+      app.path,
+      '--wait-pid',
+      pid.toString(),
+      '--inno-log',
+      log.path,
+      '--helper-log',
+      helperLog.path,
     ], mode: ProcessStartMode.detached);
   }
 
@@ -464,99 +463,6 @@ class UpdateCheckService {
       '_',
     );
     return sanitized.trim().isEmpty ? 'SpringNote-update.exe' : sanitized;
-  }
-
-  String _windowsInstallerScript({
-    required String installerPath,
-    required String appPath,
-    required String logPath,
-    required String helperLogPath,
-    required int currentPid,
-  }) {
-    final installer = _powerShellSingleQuoted(installerPath);
-    final app = _powerShellSingleQuoted(appPath);
-    final log = _powerShellSingleQuoted(logPath);
-    final helperLog = _powerShellSingleQuoted(helperLogPath);
-    return '''
-\$installer = $installer
-\$app = $app
-\$log = $log
-\$helperLog = $helperLog
-\$appPid = $currentPid
-function Write-UpdateLog([string]\$message) {
-  \$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'
-  Add-Content -LiteralPath \$helperLog -Encoding utf8 -Value "[\$timestamp] \$message"
-}
-Write-UpdateLog "helper started; installer=\$installer; app=\$app; pid=\$appPid"
-Start-Sleep -Seconds 1
-\$deadline = (Get-Date).AddSeconds(30)
-while ((Get-Date) -lt \$deadline) {
-  \$running = Get-Process -Id \$appPid -ErrorAction SilentlyContinue
-  if (\$null -eq \$running -or \$running.ProcessName -ne 'SpringNote') {
-    break
-  }
-  Start-Sleep -Milliseconds 250
-}
-\$remaining = Get-Process -Id \$appPid -ErrorAction SilentlyContinue
-if (\$null -ne \$remaining -and \$remaining.ProcessName -eq 'SpringNote') {
-  Write-UpdateLog "forcing old SpringNote process to stop"
-  Stop-Process -InputObject \$remaining -Force -ErrorAction SilentlyContinue
-  Start-Sleep -Seconds 1
-}
-\$arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOCLOSEAPPLICATIONS', "/LOG=\$log", '/SP-')
-Write-UpdateLog "starting installer"
-\$process = Start-Process -FilePath \$installer -ArgumentList \$arguments -Wait -PassThru
-Write-UpdateLog "installer exited with code \$($process.ExitCode)"
-if (\$process.ExitCode -eq 0) {
-  \$installDir = Split-Path -Parent \$app
-  \$candidates = @(\$app, (Join-Path \$installDir 'SpringNote.exe')) | Select-Object -Unique
-  for (\$attempt = 0; \$attempt -lt 5; \$attempt++) {
-    Start-Sleep -Seconds 1
-    if (\$null -ne (Get-Process -Name 'SpringNote' -ErrorAction SilentlyContinue)) {
-      Write-UpdateLog "SpringNote started by installer"
-      break
-    }
-  }
-  if (\$null -eq (Get-Process -Name 'SpringNote' -ErrorAction SilentlyContinue)) {
-    foreach (\$candidate in \$candidates) {
-      if (Test-Path -LiteralPath \$candidate) {
-        Write-UpdateLog "starting SpringNote fallback from \$candidate"
-        \$workingDirectory = Split-Path -Parent \$candidate
-        try {
-          \$shell = New-Object -ComObject Shell.Application
-          \$shell.ShellExecute(\$candidate, '', \$workingDirectory, 'open', 1)
-        } catch {
-          Write-UpdateLog "ShellExecute fallback failed: \$($_.Exception.Message)"
-          Start-Process -FilePath \$candidate -WorkingDirectory \$workingDirectory -WindowStyle Normal
-        }
-        Start-Sleep -Seconds 2
-        break
-      }
-    }
-  }
-  if (\$null -eq (Get-Process -Name 'SpringNote' -ErrorAction SilentlyContinue)) {
-    foreach (\$candidate in \$candidates) {
-      if (Test-Path -LiteralPath \$candidate) {
-        Write-UpdateLog "starting SpringNote through explorer from \$candidate"
-        Start-Process -FilePath 'explorer.exe' -ArgumentList @(\$candidate)
-        Start-Sleep -Seconds 2
-        break
-      }
-    }
-  }
-  if (\$null -ne (Get-Process -Name 'SpringNote' -ErrorAction SilentlyContinue)) {
-    Write-UpdateLog "SpringNote relaunch confirmed"
-  } else {
-    Write-UpdateLog "SpringNote relaunch was not observed"
-  }
-} else {
-  Write-UpdateLog "installer failed; see \$log"
-}
-''';
-  }
-
-  String _powerShellSingleQuoted(String value) {
-    return "'${value.replaceAll("'", "''")}'";
   }
 
   String _joinPath(String directory, String name) {
