@@ -58,6 +58,12 @@ bool TrayManager::ShouldCloseToTray() const {
   return !exiting_ && tray_icon_visible_ && close_to_tray_;
 }
 
+void TrayManager::PrepareForApplicationExit() {
+  exiting_ = true;
+  close_to_tray_ = false;
+  HideTrayIcon();
+}
+
 void TrayManager::RegisterChannelHandler() {
   channel_ = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
       messenger_, "spring_note/tray",
@@ -88,8 +94,7 @@ void TrayManager::RegisterChannelHandler() {
         }
 
         if (call.method_name() == "prepareForApplicationExit") {
-          exiting_ = true;
-          close_to_tray_ = false;
+          PrepareForApplicationExit();
           result->Success();
           return;
         }
@@ -209,7 +214,7 @@ void TrayManager::ShowContextMenu() {
 }
 
 void TrayManager::ExitApplication() {
-  exiting_ = true;
+  PrepareForApplicationExit();
   HideTrayIcon();
   if (main_window_) {
     PostMessage(main_window_, WM_CLOSE, 0, 0);

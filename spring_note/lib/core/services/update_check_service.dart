@@ -320,7 +320,6 @@ class UpdateCheckService {
     );
     await trayService.prepareForApplicationExit();
     await _launchWindowsInstallerScript(tempDir, installer);
-    exit(0);
   }
 
   Future<void> _launchWindowsInstallerScript(
@@ -330,10 +329,12 @@ class UpdateCheckService {
     final script = File(
       _joinPath(tempDir.path, 'install_springnote_update.ps1'),
     );
+    final log = File(_joinPath(tempDir.path, 'springnote_update_inno.log'));
     await script.writeAsString(
       _windowsInstallerScript(
         installerPath: installer.path,
         appPath: Platform.resolvedExecutable,
+        logPath: log.path,
       ),
       encoding: utf8,
     );
@@ -462,16 +463,34 @@ class UpdateCheckService {
   String _windowsInstallerScript({
     required String installerPath,
     required String appPath,
+    required String logPath,
   }) {
     final installer = _powerShellSingleQuoted(installerPath);
     final app = _powerShellSingleQuoted(appPath);
+    final log = _powerShellSingleQuoted(logPath);
     return '''
 \$installer = $installer
 \$app = $app
-Start-Sleep -Milliseconds 500
-\$process = Start-Process -FilePath \$installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/SP-') -Wait -PassThru
-if (\$process.ExitCode -eq 0 -and (Test-Path -LiteralPath \$app)) {
-  Start-Process -FilePath \$app
+\$log = $log
+Start-Sleep -Seconds 1
+\$arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS', '/LOGCLOSEAPPLICATIONS', "/LOG=\$log", '/SP-')
+\$process = Start-Process -FilePath \$installer -ArgumentList \$arguments -Wait -PassThru
+if (\$process.ExitCode -eq 0) {
+  \$installDir = Split-Path -Parent \$app
+  \$candidates = @(\$app, (Join-Path \$installDir 'SpringNote.exe')) | Select-Object -Unique
+  for (\$attempt = 0; \$attempt -lt 20; \$attempt++) {
+    Start-Sleep -Seconds 1
+    if (\$null -ne (Get-Process -Name 'SpringNote' -ErrorAction SilentlyContinue)) {
+      break
+    }
+    foreach (\$candidate in \$candidates) {
+      if (Test-Path -LiteralPath \$candidate) {
+        Start-Process -FilePath \$candidate -WorkingDirectory (Split-Path -Parent \$candidate)
+        \$attempt = 20
+        break
+      }
+    }
+  }
 }
 ''';
   }

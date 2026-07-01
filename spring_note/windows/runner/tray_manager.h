@@ -18,6 +18,7 @@ class TrayManager {
 
   bool HandleMessage(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
   bool ShouldCloseToTray() const;
+  void PrepareForApplicationExit();
   void ShowMainWindow();
 
  private:
