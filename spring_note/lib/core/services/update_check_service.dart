@@ -120,7 +120,7 @@ class UpdateCheckService with UpdaterListener {
 
   static const _timeout = Duration(seconds: 10);
   static const _defaultUpdateBaseUrl =
-      'https://gitee.com/radiant303/SpringNote/raw/main/update';
+      'https://api.github.com/repos/Radiant303/SpringNote/contents/update';
   static const _configuredUpdateBaseUrl = String.fromEnvironment(
     'SPRINGNOTE_UPDATE_BASE_URL',
   );
@@ -128,6 +128,7 @@ class UpdateCheckService with UpdaterListener {
 
   final TrayService trayService;
   bool _autoUpdaterInitialized = false;
+  String? _autoUpdaterFeedUrl;
 
   Future<UpdateCheckResult> check({
     UpdateCheckMode mode = UpdateCheckMode.background,
@@ -137,9 +138,6 @@ class UpdateCheckService with UpdaterListener {
       return UpdateCheckResult.failed(currentVersion: currentVersion);
     }
 
-    if (Platform.isMacOS) {
-      await _initializeAutoUpdater();
-    }
     return previewLatest();
   }
 
@@ -152,7 +150,9 @@ class UpdateCheckService with UpdaterListener {
       return;
     }
 
-    await _initializeAutoUpdater();
+    await _initializeAutoUpdater(
+      feedUrl: _sparkleFeedUrlForVersion(latest.version),
+    );
     await autoUpdater.checkForUpdates(inBackground: false);
   }
 
@@ -228,14 +228,17 @@ class UpdateCheckService with UpdaterListener {
 
   bool get _supportsUpdates => Platform.isWindows || Platform.isMacOS;
 
-  Future<void> _initializeAutoUpdater() async {
-    if (_autoUpdaterInitialized) {
-      return;
+  Future<void> _initializeAutoUpdater({String? feedUrl}) async {
+    final resolvedFeedUrl = feedUrl ?? _updateUrl('appcast.xml');
+    if (!_autoUpdaterInitialized) {
+      autoUpdater.addListener(this);
+      _autoUpdaterInitialized = true;
     }
-    autoUpdater.addListener(this);
-    await autoUpdater.setFeedURL(_updateUrl('appcast.xml'));
+    if (_autoUpdaterFeedUrl != resolvedFeedUrl) {
+      await autoUpdater.setFeedURL(resolvedFeedUrl);
+      _autoUpdaterFeedUrl = resolvedFeedUrl;
+    }
     await autoUpdater.setScheduledCheckInterval(_scheduledCheckIntervalSeconds);
-    _autoUpdaterInitialized = true;
   }
 
   Future<String> loadCurrentVersion() async {
@@ -261,7 +264,12 @@ class UpdateCheckService with UpdaterListener {
   Future<String> _readUrl(String url) async {
     final client = HttpClient()..connectionTimeout = _timeout;
     try {
-      final request = await client.getUrl(Uri.parse(url)).timeout(_timeout);
+      final uri = Uri.parse(url);
+      final request = await client.getUrl(uri).timeout(_timeout);
+      if (_isGitHubContentsApi(uri)) {
+        request.headers.set('Accept', 'application/vnd.github.raw+json');
+        request.headers.set('X-GitHub-Api-Version', '2022-11-28');
+      }
       final response = await request.close().timeout(_timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw _UpdateHttpStatusException(response.statusCode);
@@ -270,6 +278,13 @@ class UpdateCheckService with UpdaterListener {
     } finally {
       client.close(force: true);
     }
+  }
+
+  bool _isGitHubContentsApi(Uri uri) {
+    return uri.host == 'api.github.com' &&
+        uri.pathSegments.length >= 5 &&
+        uri.pathSegments[0] == 'repos' &&
+        uri.pathSegments.contains('contents');
   }
 
   Future<void> _installWindowsUpdate(
@@ -478,6 +493,23 @@ if (\$process.ExitCode -eq 0 -and (Test-Path -LiteralPath \$app)) {
     final configured = _configuredUpdateBaseUrl.trim();
     final base = configured.isEmpty ? _defaultUpdateBaseUrl : configured;
     return '${base.replaceFirst(RegExp(r'/+$'), '')}/$fileName';
+  }
+
+  String _sparkleFeedUrlForVersion(String version) {
+    final configured = _configuredUpdateBaseUrl.trim();
+    final uri = Uri.tryParse(
+      configured.isEmpty ? _defaultUpdateBaseUrl : configured,
+    );
+    if (uri == null || !_isGitHubContentsApi(uri)) {
+      return _updateUrl('appcast.xml');
+    }
+    final segments = uri.pathSegments;
+    if (segments.length < 5) {
+      return _updateUrl('appcast.xml');
+    }
+    final owner = segments[1];
+    final repo = segments[2];
+    return 'https://github.com/$owner/$repo/releases/download/$version/appcast.xml';
   }
 
   @override

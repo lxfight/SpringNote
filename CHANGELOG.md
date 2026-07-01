@@ -1,5 +1,12 @@
 # 更新日志
 
+## v1.0.10 (2026-07-01)：更新检查改用 GitHub API
+
+### 问题修复
+
+* 发布包的更新检查源改用 GitHub Contents API，降低 raw.githubusercontent.com 访问不稳定导致的检查失败概率。
+* GitHub API 元数据请求增加 raw media type，继续复用现有 windows.json、mac.json 和更新日志文件。
+
 ## v1.0.9 (2026-06-30)：Windows 更新目标验证版
 
 ### 验证
