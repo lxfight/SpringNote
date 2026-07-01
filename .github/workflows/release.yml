@@ -183,10 +183,11 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_DSA_PRIVATE_KEY)) {
             throw "Missing WINDOWS_DSA_PRIVATE_KEY secret."
           }
+          dart pub global activate auto_updater 1.0.0
           $privateKeyPath = Join-Path $PWD "dsa_priv.pem"
           $env:WINDOWS_DSA_PRIVATE_KEY -replace "`r`n", "`n" | Set-Content -NoNewline -Encoding ascii $privateKeyPath
           $assetPath = Join-Path $PWD "build\windows\x64\runner\Release\$env:WINDOWS_ASSET"
-          $signatureOutput = dart run auto_updater:sign_update $assetPath $privateKeyPath
+          $signatureOutput = dart pub global run auto_updater:sign_update $assetPath $privateKeyPath
           $signature = [regex]::Match($signatureOutput, 'sparkle:dsaSignature="([^"]+)"')
           if (-not $signature.Success) {
             throw "Failed to parse Windows update signature: $signatureOutput"
