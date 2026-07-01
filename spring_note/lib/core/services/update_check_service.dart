@@ -331,11 +331,15 @@ class UpdateCheckService {
       _joinPath(tempDir.path, 'install_springnote_update.ps1'),
     );
     final log = File(_joinPath(tempDir.path, 'springnote_update_inno.log'));
+    final helperLog = File(
+      _joinPath(tempDir.path, 'springnote_update_helper.log'),
+    );
     await script.writeAsString(
       _windowsInstallerScript(
         installerPath: installer.path,
         appPath: Platform.resolvedExecutable,
         logPath: log.path,
+        helperLogPath: helperLog.path,
         currentPid: pid,
       ),
       encoding: utf8,
@@ -466,16 +470,24 @@ class UpdateCheckService {
     required String installerPath,
     required String appPath,
     required String logPath,
+    required String helperLogPath,
     required int currentPid,
   }) {
     final installer = _powerShellSingleQuoted(installerPath);
     final app = _powerShellSingleQuoted(appPath);
     final log = _powerShellSingleQuoted(logPath);
+    final helperLog = _powerShellSingleQuoted(helperLogPath);
     return '''
 \$installer = $installer
 \$app = $app
 \$log = $log
+\$helperLog = $helperLog
 \$appPid = $currentPid
+function Write-UpdateLog([string]\$message) {
+  \$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'
+  Add-Content -LiteralPath \$helperLog -Encoding utf8 -Value "[\$timestamp] \$message"
+}
+Write-UpdateLog "helper started; installer=\$installer; app=\$app; pid=\$appPid"
 Start-Sleep -Seconds 1
 \$deadline = (Get-Date).AddSeconds(30)
 while ((Get-Date) -lt \$deadline) {
@@ -487,27 +499,58 @@ while ((Get-Date) -lt \$deadline) {
 }
 \$remaining = Get-Process -Id \$appPid -ErrorAction SilentlyContinue
 if (\$null -ne \$remaining -and \$remaining.ProcessName -eq 'SpringNote') {
+  Write-UpdateLog "forcing old SpringNote process to stop"
   Stop-Process -InputObject \$remaining -Force -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 1
 }
-\$arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOCLOSEAPPLICATIONS', '/NORESTARTAPPLICATIONS', "/LOG=\$log", '/SP-')
+\$arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOCLOSEAPPLICATIONS', "/LOG=\$log", '/SP-')
+Write-UpdateLog "starting installer"
 \$process = Start-Process -FilePath \$installer -ArgumentList \$arguments -Wait -PassThru
+Write-UpdateLog "installer exited with code \$($process.ExitCode)"
 if (\$process.ExitCode -eq 0) {
   \$installDir = Split-Path -Parent \$app
   \$candidates = @(\$app, (Join-Path \$installDir 'SpringNote.exe')) | Select-Object -Unique
-  for (\$attempt = 0; \$attempt -lt 20; \$attempt++) {
+  for (\$attempt = 0; \$attempt -lt 5; \$attempt++) {
     Start-Sleep -Seconds 1
     if (\$null -ne (Get-Process -Name 'SpringNote' -ErrorAction SilentlyContinue)) {
+      Write-UpdateLog "SpringNote started by installer"
       break
     }
+  }
+  if (\$null -eq (Get-Process -Name 'SpringNote' -ErrorAction SilentlyContinue)) {
     foreach (\$candidate in \$candidates) {
       if (Test-Path -LiteralPath \$candidate) {
-        Start-Process -FilePath \$candidate -WorkingDirectory (Split-Path -Parent \$candidate)
-        \$attempt = 20
+        Write-UpdateLog "starting SpringNote fallback from \$candidate"
+        \$workingDirectory = Split-Path -Parent \$candidate
+        try {
+          \$shell = New-Object -ComObject Shell.Application
+          \$shell.ShellExecute(\$candidate, '', \$workingDirectory, 'open', 1)
+        } catch {
+          Write-UpdateLog "ShellExecute fallback failed: \$($_.Exception.Message)"
+          Start-Process -FilePath \$candidate -WorkingDirectory \$workingDirectory -WindowStyle Normal
+        }
+        Start-Sleep -Seconds 2
         break
       }
     }
   }
+  if (\$null -eq (Get-Process -Name 'SpringNote' -ErrorAction SilentlyContinue)) {
+    foreach (\$candidate in \$candidates) {
+      if (Test-Path -LiteralPath \$candidate) {
+        Write-UpdateLog "starting SpringNote through explorer from \$candidate"
+        Start-Process -FilePath 'explorer.exe' -ArgumentList @(\$candidate)
+        Start-Sleep -Seconds 2
+        break
+      }
+    }
+  }
+  if (\$null -ne (Get-Process -Name 'SpringNote' -ErrorAction SilentlyContinue)) {
+    Write-UpdateLog "SpringNote relaunch confirmed"
+  } else {
+    Write-UpdateLog "SpringNote relaunch was not observed"
+  }
+} else {
+  Write-UpdateLog "installer failed; see \$log"
 }
 ''';
   }
