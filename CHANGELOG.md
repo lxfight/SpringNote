@@ -1,5 +1,13 @@
 # 更新日志
 
+## v1.0.22 (2026-07-01)：Windows 安装后重启修复验证基线版
+
+### 问题修复
+
+* Windows 静默安装完成后，优先由 Inno Setup 使用原始用户上下文和 ShellExecute 启动 SpringNote。
+* 更新 helper 增加安装和重启日志，并在 Inno 未启动应用时使用 ShellExecute、Start-Process 和 explorer 兜底重启。
+* 作为 1.0.23 自动更新目标测试的安装基线版本。
+
 ## v1.0.21 (2026-07-01)：Windows 更新重启目标验证版
 
 ### 验证
