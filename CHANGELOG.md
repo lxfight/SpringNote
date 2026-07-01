@@ -1,5 +1,12 @@
 # 更新日志
 
+## v1.0.25 (2026-07-01)：Windows 原生更新助手目标验证版
+
+### 验证
+
+* 用于验证 1.0.24 到 1.0.25 的 Windows 应用内更新、原生更新助手安装和自动重启链路。
+* 如果仍未自动启动，可用 `springnote_update_helper.log` 和 `springnote_update_inno.log` 定位原生 helper 或安装器状态。
+
 ## v1.0.24 (2026-07-01)：Windows 原生更新助手验证基线版
 
 ### 问题修复
