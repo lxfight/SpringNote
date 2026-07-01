@@ -194,24 +194,41 @@ jobs:
           environment:
             sdk: ">=3.0.0 <4.0.0"
           dependencies:
-            auto_updater: 1.0.0
+            auto_updater_windows: 1.0.0
           "@ | Set-Content -Encoding utf8 (Join-Path $signerDir "pubspec.yaml")
 
           Push-Location $signerDir
           flutter pub get
-          $signatureOutput = flutter pub run auto_updater:sign_update $assetPath $privateKeyPath 2>&1
+          $packageConfigPath = Join-Path $signerDir ".dart_tool\package_config.json"
+          $packageConfig = Get-Content $packageConfigPath -Raw | ConvertFrom-Json
+          $windowsPackage = $packageConfig.packages | Where-Object { $_.name -eq "auto_updater_windows" } | Select-Object -First 1
+          if ($null -eq $windowsPackage) {
+            throw "auto_updater_windows package was not resolved."
+          }
+          $rootUri = [string]$windowsPackage.rootUri
+          if ([Uri]::IsWellFormedUriString($rootUri, [UriKind]::Absolute)) {
+            $packageRoot = ([Uri]::new($rootUri)).LocalPath
+          } else {
+            $packageConfigDir = Split-Path -Parent $packageConfigPath
+            $packageRoot = [System.IO.Path]::GetFullPath((Join-Path $packageConfigDir $rootUri))
+          }
+          $signUpdateBat = Join-Path $packageRoot "windows\WinSparkle-0.8.1\bin\sign_update.bat"
+          if (-not (Test-Path $signUpdateBat)) {
+            throw "WinSparkle sign_update.bat not found at $signUpdateBat"
+          }
+          $signatureOutput = & $signUpdateBat $assetPath $privateKeyPath 2>&1
           $signExitCode = $LASTEXITCODE
           Pop-Location
           if ($signExitCode -ne 0) {
             throw "Failed to sign Windows update: $signatureOutput"
           }
-          $signature = [regex]::Match($signatureOutput, 'sparkle:dsaSignature="([^"]+)"')
-          if (-not $signature.Success) {
+          $signatureValue = "$signatureOutput".Trim()
+          if ([string]::IsNullOrWhiteSpace($signatureValue)) {
             throw "Failed to parse Windows update signature: $signatureOutput"
           }
           $length = (Get-Item $assetPath).Length
           @{
-            dsaSignature = $signature.Groups[1].Value
+            dsaSignature = $signatureValue
             length = "$length"
           } | ConvertTo-Json -Compress | Set-Content -Encoding utf8 "${env:GITHUB_WORKSPACE}\windows-update-signature.json"
           Remove-Item $privateKeyPath -Force
