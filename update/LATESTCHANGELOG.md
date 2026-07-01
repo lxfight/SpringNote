@@ -2,4 +2,5 @@
 
 ### 验证
 
-* 用于验证 1.0.10 通过 GitHub Contents API 检查并发现 1.0.11 的更新链路。
+* 修复 Windows release 直接定位并调用 WinSparkle 签名工具。
+* 作为 1.0.19 自动更新目标测试的安装基线版本。
