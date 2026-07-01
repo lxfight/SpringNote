@@ -183,12 +183,26 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_DSA_PRIVATE_KEY)) {
             throw "Missing WINDOWS_DSA_PRIVATE_KEY secret."
           }
-          flutter pub global activate auto_updater 1.0.0
           $privateKeyPath = Join-Path $PWD "dsa_priv.pem"
           $env:WINDOWS_DSA_PRIVATE_KEY -replace "`r`n", "`n" | Set-Content -NoNewline -Encoding ascii $privateKeyPath
           $assetPath = Join-Path $PWD "build\windows\x64\runner\Release\$env:WINDOWS_ASSET"
-          $signatureOutput = flutter pub global run auto_updater:sign_update $assetPath $privateKeyPath 2>&1
-          if ($LASTEXITCODE -ne 0) {
+          $signerDir = Join-Path $env:RUNNER_TEMP "springnote_update_signer"
+          New-Item -ItemType Directory -Force $signerDir | Out-Null
+          @"
+          name: springnote_update_signer
+          publish_to: none
+          environment:
+            sdk: ">=3.0.0 <4.0.0"
+          dependencies:
+            auto_updater: 1.0.0
+          "@ | Set-Content -Encoding utf8 (Join-Path $signerDir "pubspec.yaml")
+
+          Push-Location $signerDir
+          flutter pub get
+          $signatureOutput = flutter pub run auto_updater:sign_update $assetPath $privateKeyPath 2>&1
+          $signExitCode = $LASTEXITCODE
+          Pop-Location
+          if ($signExitCode -ne 0) {
             throw "Failed to sign Windows update: $signatureOutput"
           }
           $signature = [regex]::Match($signatureOutput, 'sparkle:dsaSignature="([^"]+)"')
