@@ -1,7 +1,4 @@
 PODS:
-  - auto_updater_macos (0.0.1):
-    - FlutterMacOS
-    - Sparkle
   - file_selector_macos (0.0.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
@@ -16,12 +13,12 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
-  - auto_updater_macos (from `Flutter/ephemeral/.symlinks/plugins/auto_updater_macos/macos`)
   - file_selector_macos (from `Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - package_info_plus (from `Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos`)
   - rust (from `Flutter/ephemeral/.symlinks/plugins/rust/macos`)
   - screen_retriever_macos (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever_macos/macos`)
+  - Sparkle
   - window_manager (from `Flutter/ephemeral/.symlinks/plugins/window_manager/macos`)
 
 SPEC REPOS:
@@ -29,8 +26,6 @@ SPEC REPOS:
     - Sparkle
 
 EXTERNAL SOURCES:
-  auto_updater_macos:
-    :path: Flutter/ephemeral/.symlinks/plugins/auto_updater_macos/macos
   file_selector_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos
   FlutterMacOS:
@@ -45,7 +40,6 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/window_manager/macos
 
 SPEC CHECKSUMS:
-  auto_updater_macos: 3a42f1a06be6981f1a18be37e6e7bf86aa732118
   file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870
@@ -54,6 +48,6 @@ SPEC CHECKSUMS:
   Sparkle: 39dbdf28637f6056fbf5ee6494bdbfae54f49f41
   window_manager: b729e31d38fb04905235df9ea896128991cad99e
 
-PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
+PODFILE CHECKSUM: 7906fa6f8b70b93d77b6ccc70f2c717e2ad05bee
 
 COCOAPODS: 1.16.2

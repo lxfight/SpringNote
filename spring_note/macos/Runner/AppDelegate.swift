@@ -7,6 +7,7 @@ class AppDelegate: FlutterAppDelegate {
   let clipboardImageController = ClipboardImageController()
   let desktopWidgetController = DesktopWidgetWindowController()
   let globalHotkeyController = GlobalHotkeyController()
+  let macUpdateController = MacUpdateController()
   let securityScopedDirectoryController = SecurityScopedDirectoryController()
   let trayController = TrayController()
 

@@ -47,7 +47,6 @@ dependencies:
   file_selector: ^1.0.4
   flutter_svg: ^2.3.0
   path: ^1.9.1
-  auto_updater: ^1.0.0
 
 dependency_overrides:
   # syntax_highlight's CodeEditor depends on super_clipboard, which pulls in a

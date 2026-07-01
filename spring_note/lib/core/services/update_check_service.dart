@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:auto_updater/auto_updater.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'tray_service.dart';
@@ -29,20 +29,33 @@ class AppUpdateInfo {
   }
 }
 
-enum UpdateInstallStage { downloading, verifying, launching }
+enum UpdateInstallStage {
+  preparing,
+  downloading,
+  verifying,
+  extracting,
+  installing,
+  launching,
+}
 
 class UpdateInstallProgress {
   const UpdateInstallProgress({
     required this.stage,
     this.receivedBytes = 0,
     this.totalBytes,
+    this.fractionOverride,
   });
 
   final UpdateInstallStage stage;
   final int receivedBytes;
   final int? totalBytes;
+  final double? fractionOverride;
 
   double? get fraction {
+    final explicitFraction = fractionOverride;
+    if (explicitFraction != null) {
+      return explicitFraction.clamp(0, 1).toDouble();
+    }
     final total = totalBytes;
     if (total == null || total <= 0) {
       return null;
@@ -115,8 +128,11 @@ class UpdateCheckResult {
   final AppUpdateInfo? latest;
 }
 
-class UpdateCheckService with UpdaterListener {
-  UpdateCheckService({this.trayService = const TrayService()});
+class UpdateCheckService {
+  UpdateCheckService({
+    this.trayService = const TrayService(),
+    this.macUpdateInstaller = const MacUpdateInstaller(),
+  });
 
   static const _timeout = Duration(seconds: 10);
   static const _defaultUpdateBaseUrl =
@@ -124,11 +140,8 @@ class UpdateCheckService with UpdaterListener {
   static const _configuredUpdateBaseUrl = String.fromEnvironment(
     'SPRINGNOTE_UPDATE_BASE_URL',
   );
-  static const _scheduledCheckIntervalSeconds = 6 * 60 * 60;
-
   final TrayService trayService;
-  bool _autoUpdaterInitialized = false;
-  String? _autoUpdaterFeedUrl;
+  final MacUpdateInstaller macUpdateInstaller;
 
   Future<UpdateCheckResult> check({
     UpdateCheckMode mode = UpdateCheckMode.background,
@@ -150,10 +163,22 @@ class UpdateCheckService with UpdaterListener {
       return;
     }
 
-    await _initializeAutoUpdater(
+    if (Platform.isMacOS) {
+      await _installMacUpdate(latest, onProgress: onProgress);
+      return;
+    }
+
+    throw const UpdateInstallException('当前平台暂不支持自动更新。');
+  }
+
+  Future<void> _installMacUpdate(
+    AppUpdateInfo latest, {
+    void Function(UpdateInstallProgress progress)? onProgress,
+  }) async {
+    await macUpdateInstaller.installUpdate(
       feedUrl: _sparkleFeedUrlForVersion(latest.version),
+      onProgress: onProgress,
     );
-    await autoUpdater.checkForUpdates(inBackground: false);
   }
 
   Future<UpdateCheckResult> previewLatest() async {
@@ -227,19 +252,6 @@ class UpdateCheckService with UpdaterListener {
   }
 
   bool get _supportsUpdates => Platform.isWindows || Platform.isMacOS;
-
-  Future<void> _initializeAutoUpdater({String? feedUrl}) async {
-    final resolvedFeedUrl = feedUrl ?? _updateUrl('appcast.xml');
-    if (!_autoUpdaterInitialized) {
-      autoUpdater.addListener(this);
-      _autoUpdaterInitialized = true;
-    }
-    if (_autoUpdaterFeedUrl != resolvedFeedUrl) {
-      await autoUpdater.setFeedURL(resolvedFeedUrl);
-      _autoUpdaterFeedUrl = resolvedFeedUrl;
-    }
-    await autoUpdater.setScheduledCheckInterval(_scheduledCheckIntervalSeconds);
-  }
 
   Future<String> loadCurrentVersion() async {
     try {
@@ -512,26 +524,6 @@ if (\$process.ExitCode -eq 0 -and (Test-Path -LiteralPath \$app)) {
     return 'https://github.com/$owner/$repo/releases/download/$version/appcast.xml';
   }
 
-  @override
-  void onUpdaterBeforeQuitForUpdate(AppcastItem? appcastItem) {
-    unawaited(trayService.prepareForApplicationExit());
-  }
-
-  @override
-  void onUpdaterCheckingForUpdate(Appcast? appcast) {}
-
-  @override
-  void onUpdaterError(UpdaterError? error) {}
-
-  @override
-  void onUpdaterUpdateAvailable(AppcastItem? appcastItem) {}
-
-  @override
-  void onUpdaterUpdateDownloaded(AppcastItem? appcastItem) {}
-
-  @override
-  void onUpdaterUpdateNotAvailable(UpdaterError? error) {}
-
   int _compareVersions(String left, String right) {
     final leftParts = _versionParts(left);
     final rightParts = _versionParts(right);
@@ -551,6 +543,149 @@ if (\$process.ExitCode -eq 0 -and (Test-Path -LiteralPath \$app)) {
       for (var index = 0; index < 3; index++)
         index < parts.length ? int.tryParse(parts[index]) ?? 0 : 0,
     ];
+  }
+}
+
+class MacUpdateInstaller {
+  const MacUpdateInstaller({
+    this.methodChannel = const MethodChannel('spring_note/mac_update'),
+    this.eventChannel = const EventChannel('spring_note/mac_update_events'),
+  });
+
+  final MethodChannel methodChannel;
+  final EventChannel eventChannel;
+
+  Future<void> installUpdate({
+    required String feedUrl,
+    void Function(UpdateInstallProgress progress)? onProgress,
+  }) async {
+    if (!Platform.isMacOS) {
+      throw const UpdateInstallException('当前平台暂不支持 macOS 自动更新。');
+    }
+
+    final completer = Completer<void>();
+    StreamSubscription<dynamic>? subscription;
+
+    void fail(String message) {
+      if (!completer.isCompleted) {
+        completer.completeError(UpdateInstallException(message));
+      }
+    }
+
+    void complete() {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
+
+    subscription = eventChannel.receiveBroadcastStream().listen(
+      (event) {
+        final data = _eventMap(event);
+        if (data == null) {
+          return;
+        }
+
+        final progress = _progressFromEvent(data);
+        if (progress != null) {
+          onProgress?.call(progress);
+        }
+
+        final type = data['type']?.toString();
+        if (type == 'error') {
+          fail(_eventMessage(data, 'macOS 更新失败，请稍后重试。'));
+        } else if (type == 'notFound') {
+          fail(_eventMessage(data, '没有找到可安装的 macOS 更新。'));
+        } else if (type == 'dismissed') {
+          fail('macOS 更新流程已结束，请稍后重试。');
+        } else if (type == 'relaunching' || type == 'installed') {
+          complete();
+        }
+      },
+      onError: (_) => fail('macOS 更新失败，请稍后重试。'),
+      onDone: () => fail('macOS 更新流程已中断，请稍后重试。'),
+    );
+
+    try {
+      await methodChannel.invokeMethod<void>('installUpdate', {
+        'feedUrl': feedUrl,
+      });
+      await completer.future;
+    } on PlatformException catch (error) {
+      throw UpdateInstallException(
+        error.message?.trim().isNotEmpty == true
+            ? error.message!.trim()
+            : 'macOS 更新启动失败，请稍后重试。',
+      );
+    } finally {
+      await subscription.cancel();
+    }
+  }
+
+  Map<Object?, Object?>? _eventMap(Object? event) {
+    if (event is Map<Object?, Object?>) {
+      return event;
+    }
+    return null;
+  }
+
+  UpdateInstallProgress? _progressFromEvent(Map<Object?, Object?> data) {
+    return switch (data['type']?.toString()) {
+      'preparing' => const UpdateInstallProgress(
+        stage: UpdateInstallStage.preparing,
+      ),
+      'downloading' => UpdateInstallProgress(
+        stage: UpdateInstallStage.downloading,
+        receivedBytes: _intValue(data['receivedBytes']),
+        totalBytes: _nullableIntValue(data['totalBytes']),
+      ),
+      'extracting' => UpdateInstallProgress(
+        stage: UpdateInstallStage.extracting,
+        fractionOverride: _doubleValue(data['fraction']),
+      ),
+      'installing' => const UpdateInstallProgress(
+        stage: UpdateInstallStage.installing,
+      ),
+      'relaunching' => const UpdateInstallProgress(
+        stage: UpdateInstallStage.launching,
+      ),
+      'installed' => const UpdateInstallProgress(
+        stage: UpdateInstallStage.launching,
+      ),
+      _ => null,
+    };
+  }
+
+  String _eventMessage(Map<Object?, Object?> data, String fallback) {
+    final message = data['message']?.toString().trim();
+    return message == null || message.isEmpty ? fallback : message;
+  }
+
+  int _intValue(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is double) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  int? _nullableIntValue(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    final parsed = _intValue(value);
+    return parsed > 0 ? parsed : null;
+  }
+
+  double? _doubleValue(Object? value) {
+    if (value is double) {
+      return value;
+    }
+    if (value is int) {
+      return value.toDouble();
+    }
+    return double.tryParse(value?.toString() ?? '');
   }
 }
 

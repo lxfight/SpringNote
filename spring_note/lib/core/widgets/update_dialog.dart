@@ -204,10 +204,13 @@ class _UpdateInstallStatus extends StatelessWidget {
 
     final current = progress;
     final text = switch (current?.stage) {
+      UpdateInstallStage.preparing => '正在准备更新...',
       UpdateInstallStage.downloading => _downloadText(current),
       UpdateInstallStage.verifying => '正在校验安装包...',
+      UpdateInstallStage.extracting => _extractingText(current),
+      UpdateInstallStage.installing => '正在安装更新...',
       UpdateInstallStage.launching =>
-        Platform.isWindows ? '正在启动安装器，SpringNote 即将退出并重启...' : '正在启动系统更新器...',
+        Platform.isWindows ? '正在启动安装器，SpringNote 即将退出并重启...' : '正在重启并替换为新版本...',
       null => '正在准备更新...',
     };
     return Column(
@@ -219,7 +222,8 @@ class _UpdateInstallStatus extends StatelessWidget {
           color: AppTheme.text,
           background: const Color(0xFFF5F5F5),
         ),
-        if (current?.stage == UpdateInstallStage.downloading) ...[
+        if (current?.stage == UpdateInstallStage.downloading ||
+            current?.stage == UpdateInstallStage.extracting) ...[
           const SizedBox(height: 8),
           LinearProgressIndicator(
             value: current?.fraction,
@@ -240,6 +244,14 @@ class _UpdateInstallStatus extends StatelessWidget {
       return '正在下载安装包 ${_formatBytes(received)}';
     }
     return '正在下载安装包 ${_formatBytes(received)} / ${_formatBytes(total)}';
+  }
+
+  String _extractingText(UpdateInstallProgress? progress) {
+    final fraction = progress?.fraction;
+    if (fraction == null) {
+      return '正在解压更新...';
+    }
+    return '正在解压更新 ${(fraction * 100).clamp(0, 100).toStringAsFixed(0)}%';
   }
 
   String _formatBytes(int bytes) {
