@@ -320,6 +320,7 @@ class UpdateCheckService {
     );
     await trayService.prepareForApplicationExit();
     await _launchWindowsInstallerScript(tempDir, installer);
+    await trayService.quitForUpdate();
   }
 
   Future<void> _launchWindowsInstallerScript(
@@ -335,6 +336,7 @@ class UpdateCheckService {
         installerPath: installer.path,
         appPath: Platform.resolvedExecutable,
         logPath: log.path,
+        currentPid: pid,
       ),
       encoding: utf8,
     );
@@ -464,6 +466,7 @@ class UpdateCheckService {
     required String installerPath,
     required String appPath,
     required String logPath,
+    required int currentPid,
   }) {
     final installer = _powerShellSingleQuoted(installerPath);
     final app = _powerShellSingleQuoted(appPath);
@@ -472,8 +475,22 @@ class UpdateCheckService {
 \$installer = $installer
 \$app = $app
 \$log = $log
+\$appPid = $currentPid
 Start-Sleep -Seconds 1
-\$arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/RESTARTAPPLICATIONS', '/LOGCLOSEAPPLICATIONS', "/LOG=\$log", '/SP-')
+\$deadline = (Get-Date).AddSeconds(30)
+while ((Get-Date) -lt \$deadline) {
+  \$running = Get-Process -Id \$appPid -ErrorAction SilentlyContinue
+  if (\$null -eq \$running -or \$running.ProcessName -ne 'SpringNote') {
+    break
+  }
+  Start-Sleep -Milliseconds 250
+}
+\$remaining = Get-Process -Id \$appPid -ErrorAction SilentlyContinue
+if (\$null -ne \$remaining -and \$remaining.ProcessName -eq 'SpringNote') {
+  Stop-Process -InputObject \$remaining -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 1
+}
+\$arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOCLOSEAPPLICATIONS', '/NORESTARTAPPLICATIONS', "/LOG=\$log", '/SP-')
 \$process = Start-Process -FilePath \$installer -ArgumentList \$arguments -Wait -PassThru
 if (\$process.ExitCode -eq 0) {
   \$installDir = Split-Path -Parent \$app
